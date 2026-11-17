@@ -9,7 +9,7 @@ nobody misses a renewal.
 
 ## Status
 
-Phases 1 (Foundation) and 2 (Core product) of 6 are complete. What works today:
+Phases 1 (Foundation), 2 (Core product) and 3 (Document intelligence) of 6 are complete. What works today:
 
 - Accounts: registration, sign in, email confirmation, password reset,
   rotating sessions, sign out everywhere
@@ -24,8 +24,10 @@ Phases 1 (Foundation) and 2 (Core product) of 6 are complete. What works today:
 - Entities: employees, suppliers, equipment, locations and departments,
   each with its own page and documents
 - Dashboard with real figures and charts, and search across the organization
+- Document intelligence: uploaded files are read (PDF text, Word, OCR, or Claude for scans) and their
+  details offered as suggestions, with confidence and date checks, applied only after a person reviews them
 
-AI extraction, reminders, renewals, the calendar, reports and billing are
+Reminders, renewals, the calendar, reports and billing are
 the next phases. [`TASKS.md`](docs/TASKS.md) lists exactly what is done, what is
 not, and what has not been verified. [`IMPLEMENTATION_ROADMAP.md`](docs/IMPLEMENTATION_ROADMAP.md) has the plan.
 

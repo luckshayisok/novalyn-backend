@@ -38,6 +38,8 @@ Production refuses to start unless these are set correctly.
 | `S3_BUCKET`, `S3_REGION` | The document bucket. Keep it private, with versioning and encryption at rest enabled |
 | `S3_ENDPOINT_URL` | Only for S3-compatible services other than AWS |
 | `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | Credentials limited to that bucket; leave unset to use the instance role |
+| `AI_PROVIDER` | `anthropic` for real reading, or `none` |
+| `ANTHROPIC_API_KEY` | From your secret manager |
 | `LOG_JSON` | `true` |
 | `FORWARDED_ALLOW_IPS` | The address of your reverse proxy, so rate limits see real client addresses |
 

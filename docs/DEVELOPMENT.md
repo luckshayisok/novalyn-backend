@@ -115,6 +115,10 @@ Documented with defaults in `backend/.env.example`. The ones that matter most:
 | `MAX_UPLOAD_SIZE_MB` | Largest accepted file (default 25) |
 | `FILE_URL_TTL_SECONDS` | Lifetime of download and preview links (default 120) |
 | `EXPIRING_SOON_DAYS` | When a document counts as expiring soon (default 30) |
+| `AI_PROVIDER` | `heuristic` (default, no external calls), `anthropic` or `none` |
+| `ANTHROPIC_API_KEY` | Key for `AI_PROVIDER=anthropic` |
+| `AI_MODEL`, `AI_EFFORT` | Model and effort for Claude (defaults `claude-opus-5-5`, `medium`) |
+| `OCR_BACKEND`, `TESSERACT_CMD` | OCR for scans when the reader cannot read files itself |
 
 ### Structure
 
@@ -193,3 +197,25 @@ frontend/src/
 From `novalyn-backend`, with `novalyn-frontend` cloned next to it, `docker compose up --build` starts PostgreSQL, Redis, the API, a worker, the
 web app (http://localhost:8080) and a development mailbox
 (http://localhost:8025).
+
+## Document intelligence
+
+When a file is uploaded, a reading is queued for it. The worker extracts the
+text (PDF text layer, Word text, or OCR), passes it to the configured reader,
+checks the result with plain code (dates, date order, confidence) and stores
+it as suggestions. Nothing changes the document until a person reviews the
+suggestions on the document page and saves them.
+
+| `AI_PROVIDER` | What happens |
+|---|---|
+| `heuristic` | Rule-based development reader. No network calls, modest results, confidence capped at 60% |
+| `anthropic` | Claude reads the text, or the file itself for scans and photos (no OCR needed) |
+| `none` | No automatic reading; details are entered by hand |
+
+Without a worker (`CELERY_TASK_ALWAYS_EAGER=true`) the reading runs inside
+the upload request, so with Claude an upload waits for the answer. Run a
+worker in production.
+
+Code: `app/services/extraction.py` (pipeline), `app/services/text_extraction.py`,
+`app/services/extraction_rules.py` (deterministic checks),
+`app/integrations/ai/` (readers), `app/integrations/ocr/`.

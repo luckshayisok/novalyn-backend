@@ -82,6 +82,22 @@ gaps that remain. It is not a certification and makes no legal compliance claim.
 - Downloads (not previews) are recorded in the audit log.
 - Document versions cannot be deleted through the application.
 
+### Document intelligence
+- With `AI_PROVIDER=anthropic`, the text of each uploaded document (or, for
+  scans and photos, the file) is sent to Anthropic's API. Tell customers in
+  your privacy notice and data processing terms. `heuristic` and `none` send
+  nothing anywhere.
+- Document text is treated as untrusted data: it is fenced in the prompt, the
+  system prompt tells the model to ignore instructions inside it, and the
+  answer must match a fixed JSON schema.
+- The answer is validated again in code, dates are re-read from the
+  document's own wording, and the result is only ever a suggestion. A person
+  with write permission must apply it; only someone with verify permission
+  can verify in the same step. Every apply, dismiss and retry is audited.
+- Text extraction is bounded: first 10 pages, 30,000 characters, Word XML up
+  to 25 MB, images up to 60 megapixels, and the worker task has a time limit.
+- Error messages shown to users never include internal details.
+
 ### Rate limiting
 - Fixed-window limits on authentication, invitation and organization-creation
   endpoints (see `API_DOCUMENTATION.md`). Counters are in memory for a single

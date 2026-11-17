@@ -322,3 +322,31 @@ Audit actions added in Phase 2: `document.uploaded`, `document.updated`,
 `document.version_added`, `document.verified`, `document.rejected`,
 `document.downloaded`, `document.archived`, `document.restored`,
 `entity.created`, `entity.updated`, `entity.archived`, `entity.restored`.
+
+## Document intelligence
+
+Under `/organizations/{id}/documents/{document_id}`.
+
+| Method | Path | Permission | Description |
+|---|---|---|---|
+| GET | `/extraction` | `documents:read` | `{ "enabled", "extraction" }` for the current file; `extraction` is null when none exists |
+| POST | `/extraction/retry` | `documents:write` | Read the current file again. `409 extraction_in_progress` while a reading is running |
+| POST | `/extraction/apply` | `documents:write` | Save confirmed values: any of `name`, `category`, `document_number`, `issuing_authority`, `holder_name`, `issue_date`, `expiry_date`, `entity_id`, plus `verify` (needs `documents:verify`) |
+| POST | `/extraction/dismiss` | `documents:write` | Close the suggestions without changing the document |
+
+Statuses: `pending`, `processing`, `extraction_completed`, `review_required`,
+`failed`, `verified` (reviewed and saved), `dismissed`. Apply and dismiss need
+`extraction_completed` or `review_required` (`409 extraction_not_ready`
+otherwise). With `AI_PROVIDER=none`, `enabled` is false and retry returns
+`409 extraction_disabled`.
+
+Each entry in `fields` is `{ "value", "confidence", "evidence", "note", "raw" }`.
+Dates are `YYYY-MM-DD` in `value`, with the wording on the document in `raw`.
+`entity_id` is suggested when a name on the document matches a record exactly.
+`warnings` lists what needs a careful look (missing or past expiry, ambiguous
+or out-of-order dates).
+
+Document objects gain `extraction_status`; the library accepts
+`suggestions=true`; the dashboard gains `metrics.suggestions_to_review`.
+Audit actions: `document.extraction_applied`, `document.extraction_dismissed`,
+`document.extraction_retried`.

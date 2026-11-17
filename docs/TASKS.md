@@ -112,7 +112,7 @@ verified, `[ ]` not started.
 - [ ] "Renewals in progress" figure and "monthly renewal trends" chart need renewals (Phase 4)
 - [ ] Notifications and help in the header (Phase 4)
 
-## Phase 3 — Document intelligence (in progress)
+## Phase 3 — Document intelligence
 
 ### Backend (done)
 - [x] Text extraction: PDF text layer (pypdf), Word (python-docx), bounded by pages, characters and size
@@ -124,16 +124,26 @@ verified, `[ ]` not started.
 - [x] Suggestions stored as drafts; nothing changes a document until a person applies it
 - [x] Apply (optionally verifying in the same step), dismiss and retry, all audited
 - [x] Works with automatic reading switched off (`AI_PROVIDER=none`)
+- [x] Library filter for documents with suggestions waiting
 - [x] Migration `0003`; 283 backend tests pass
 
 ### Not verified
 - [~] The Claude adapter was tested with a stand-in client only; no real API call has been made
 - [~] Tesseract is not installed on the build machine; the OCR path is tested with a stand-in
+- [~] Not clicked in the browser: dismiss, retry after a failure, the library filter and the dashboard notice
+      (all covered by backend tests)
 
-### Frontend (not done yet)
-- [x] Types and API calls for suggestions
-- [ ] Suggestions panel on the document page, review-and-apply screen, status badges in the library
-- [ ] Dashboard figure and library filter for suggestions waiting
+### Frontend
+- [x] Suggestions panel on the document page: reading, failed with retry, ready, reviewed
+- [x] Review screen: each suggestion next to the current value, confidence, the quote it came from,
+      notes on doubtful dates, "keep current" per field, save or save and verify
+- [x] "Suggestions" and "Reading…" badges in the library, and a "Suggestions to review" filter
+- [x] Dashboard notice when suggestions are waiting; audit log wording for the new events
+
+### Checked by hand in a browser
+- [x] Upload a text PDF: suggestions appear with confidence, and the ambiguous issue date is flagged
+- [x] Review screen shows suggestion, current value and quote for each field
+- [x] Save and verify: seven fields saved, document verified, panel shows who reviewed it
 
 ## Phase 4 — Lifecycle automation
 - [ ] Expiry service and document statuses
