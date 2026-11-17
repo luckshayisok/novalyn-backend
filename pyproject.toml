@@ -1,0 +1,28 @@
+[project]
+name = "novalyn-backend"
+version = "0.1.0"
+description = "NOVALYN API: document intelligence, certificate management and renewal tracking."
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+filterwarnings = ["error::sqlalchemy.exc.SAWarning"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "C4", "SIM"]
+ignore = [
+    "B008",  # FastAPI's Depends() in argument defaults
+    "S101",  # assert, used in tests
+    "S105",  # flags names such as token_type and PASSWORD_RESET, which are not secrets
+    "UP046", # keep Generic[...] for the Pydantic and repository generics
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S105", "S106"]
