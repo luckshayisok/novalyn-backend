@@ -12,6 +12,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     Uuid,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -122,19 +123,34 @@ class Document(UUIDPrimaryKey, Timestamps, TenantScoped, Base):
 
     @property
     def current_version(self) -> "DocumentVersion | None":
-        return self.versions[0] if self.versions else None
+        """The newest file in use. Files waiting for renewal approval, or rejected, do not count."""
+        return next((version for version in self.versions if version.state == VersionState.ACTIVE), None)
+
+
+class VersionState:
+    ACTIVE = "active"  # in use; the highest active version is the current file
+    PENDING = "pending"  # uploaded for a renewal that has not been approved yet
+    REJECTED = "rejected"  # uploaded for a renewal that was rejected; kept for the record
+
+    ALL = (ACTIVE, PENDING, REJECTED)
 
 
 class DocumentVersion(UUIDPrimaryKey, CreatedAt, TenantScoped, Base):
     """One uploaded file. Versions are kept for good; replacing a document adds a version."""
 
     __tablename__ = "document_versions"
-    __table_args__ = (UniqueConstraint("document_id", "version_number"),)
+    __table_args__ = (
+        UniqueConstraint("document_id", "version_number"),
+        CheckConstraint("state IN ('active', 'pending', 'rejected')", name="state_valid"),
+    )
 
     document_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True
     )
     version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    state: Mapped[str] = mapped_column(
+        String(16), default=VersionState.ACTIVE, server_default=text("'active'"), nullable=False
+    )
     storage_key: Mapped[str] = mapped_column(String(512), nullable=False)
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     content_type: Mapped[str] = mapped_column(String(120), nullable=False)

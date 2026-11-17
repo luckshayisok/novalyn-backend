@@ -26,12 +26,15 @@ def expiring_window_days() -> int:
     return get_settings().expiring_soon_days
 
 
-def organization_today(timezone_name: str) -> date:
+def organization_zone(timezone_name: str) -> ZoneInfo:
     try:
-        zone = ZoneInfo(timezone_name)
+        return ZoneInfo(timezone_name)
     except (ZoneInfoNotFoundError, ValueError):
-        zone = ZoneInfo("UTC")
-    return utcnow().astimezone(zone).date()
+        return ZoneInfo("UTC")
+
+
+def organization_today(timezone_name: str) -> date:
+    return utcnow().astimezone(organization_zone(timezone_name)).date()
 
 
 def compute_status(

@@ -99,6 +99,20 @@ in the same transaction as the event that caused it and cannot be lost.
 
 Without a broker (local development, tests) tasks run inline.
 
+## Lifecycle automation
+
+- **Expiry status** is calculated, not stored (`app/services/expiry.py`).
+- **Reminders**: an hourly scan (`app/services/reminders.py`) works out each
+  organization's date and emits one event per reminder threshold, with a
+  dedupe key so that nothing is sent twice.
+- **Outbox**: every event is an `outbox_events` row written in the same
+  transaction as the change that caused it. The dispatcher claims due rows,
+  creates one `notifications` row per recipient (unique per event and person)
+  and sends emails with retries. Delivery is at least once.
+- **Renewals** (`app/services/renewals.py`) keep the renewed file as a
+  pending version until approval, so the current file never changes without
+  an approver.
+
 ## Frontend
 
 React, TypeScript, Vite, Tailwind CSS, shadcn/ui components, React Router,

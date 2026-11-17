@@ -9,7 +9,7 @@ nobody misses a renewal.
 
 ## Status
 
-Phases 1 (Foundation), 2 (Core product) and 3 (Document intelligence) of 6 are complete. What works today:
+Phases 1 to 4 of 6 (Foundation, Core product, Document intelligence, Lifecycle automation) are complete. What works today:
 
 - Accounts: registration, sign in, email confirmation, password reset,
   rotating sessions, sign out everywhere
@@ -26,8 +26,10 @@ Phases 1 (Foundation), 2 (Core product) and 3 (Document intelligence) of 6 are c
 - Dashboard with real figures and charts, and search across the organization
 - Document intelligence: uploaded files are read (PDF text, Word, OCR, or Claude for scans) and their
   details offered as suggestions, with confidence and date checks, applied only after a person reviews them
+- Reminders before expiry (configurable), expired and overdue alerts, in-app notifications and email
+- Renewal workflow with assignment, deadlines, the renewed file kept aside until approval, and full history
 
-Reminders, renewals, the calendar, reports and billing are
+The calendar, reports and billing are
 the next phases. [`TASKS.md`](docs/TASKS.md) lists exactly what is done, what is
 not, and what has not been verified. [`IMPLEMENTATION_ROADMAP.md`](docs/IMPLEMENTATION_ROADMAP.md) has the plan.
 

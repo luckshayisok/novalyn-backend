@@ -113,3 +113,33 @@ def invitation_email(
         text=_text("Hello,", [line], "Accept invitation", url, footnote),
         html=_layout(heading, [escape(line)], "Accept invitation", url, footnote),
     )
+
+
+def notification_email(
+    *,
+    to: str,
+    full_name: str,
+    subject: str,
+    heading: str,
+    lines: list[str],
+    action_label: str,
+    url: str,
+    organization_name: str,
+) -> EmailMessage:
+    """A reminder or workflow notice: expiring documents, renewals, review outcomes."""
+    footnote = (
+        f"You are receiving this because you are a member of {organization_name} on {BRAND}. "
+        "Owners and admins can change reminder settings in the organization settings."
+    )
+    return EmailMessage(
+        to=to,
+        subject=subject,
+        text=_text(f"Hi {full_name},", lines, action_label, url, footnote),
+        html=_layout(
+            heading,
+            [f"Hi {escape(full_name)},", *(escape(line) for line in lines)],
+            action_label,
+            url,
+            footnote,
+        ),
+    )

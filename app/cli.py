@@ -1,6 +1,8 @@
 """Command-line tasks: `python -m app.cli <command>`.
 
-seed    Create a demo organization with one user per role. Development only.
+seed            Create a demo organization with one user per role. Development only.
+scan-expiries   Emit the expiry reminders that are due now (Celery Beat runs this hourly).
+dispatch        Deliver pending notifications now (Celery Beat runs this every minute).
 """
 
 import os
@@ -67,7 +69,20 @@ def seed(db: Session, password: str) -> list[str]:
 
 
 def main(argv: list[str]) -> int:
-    if argv[1:] != ["seed"]:
+    command = argv[1:]
+    if command == ["scan-expiries"]:
+        from app.services.reminders import ReminderScanner
+
+        with SessionLocal() as db:
+            print(f"Reminders queued: {ReminderScanner(db).run()}")
+        return 0
+    if command == ["dispatch"]:
+        from app.services.notifications import Dispatcher
+
+        with SessionLocal() as db:
+            print(f"Events delivered: {Dispatcher(db).run()}")
+        return 0
+    if command != ["seed"]:
         print(__doc__)
         return 2
     password = os.environ.get("SEED_PASSWORD")

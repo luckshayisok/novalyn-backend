@@ -18,6 +18,7 @@ from app.core.config import get_settings
 from app.core.constants import DOCUMENT_CATEGORIES
 from app.core.errors import ConflictError, NotFoundError
 from app.core.files import INLINE_CONTENT_TYPES, ValidatedUpload
+from app.core.permissions import Permission
 from app.core.security import create_file_token, decode_file_token
 from app.core.storage import StoredFileNotFoundError, document_key, get_storage
 from app.core.tenancy import set_tenant
@@ -33,6 +34,7 @@ from app.services.audit import AuditAction, AuditService
 from app.services.context import OrgContext
 from app.services.entities import field_error, resolve_owner
 from app.services.expiry import organization_today
+from app.services.notifications import EventType, document_payload, emit, kick_dispatcher
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +93,7 @@ class DocumentService:
         DocumentRepository(self.db, ctx.organization_id).add(document)
         self.db.flush()
 
-        version = self._store_version(ctx, document, upload, version_number=1, note=None)
+        version = self.store_version(ctx, document, upload, version_number=1, note=None)
         self.audit.record_for(
             ctx,
             action=AuditAction.DOCUMENT_UPLOADED,
@@ -103,9 +105,11 @@ class DocumentService:
                 "filename": version.original_filename,
             },
         )
-        extraction_id = self._queue_extraction(ctx, document, version)
-        self._commit_or_remove_file(version.storage_key)
-        self._start_extraction(extraction_id)
+        self._ask_for_review(ctx, document)
+        extraction_id = self.queue_extraction(ctx, document, version)
+        self.commit_or_remove_file(version.storage_key)
+        self.start_extraction(extraction_id)
+        kick_dispatcher()
         self.db.refresh(document)
         return document
 
@@ -120,9 +124,16 @@ class DocumentService:
     ) -> Document:
         """Replace the document's file. Earlier versions stay in the history."""
         document = self._get_editable(ctx, document_id)
+        from app.services.renewals import RenewalRepository
+
+        if RenewalRepository(self.db, ctx.organization_id).open_for_document(document.id) is not None:
+            raise ConflictError(
+                "A renewal is in progress for this document. Upload the renewed file to the renewal instead.",
+                code="renewal_in_progress",
+            )
         self._apply(ctx, document, dates)
         number = DocumentVersionRepository(self.db, ctx.organization_id).next_version_number(document.id)
-        version = self._store_version(ctx, document, upload, version_number=number, note=note)
+        version = self.store_version(ctx, document, upload, version_number=number, note=note)
 
         # A new file has not been checked by anyone yet.
         self._reset_verification(document)
@@ -134,13 +145,23 @@ class DocumentService:
             resource_id=document.id,
             metadata={"name": document.name, "version": number, "filename": version.original_filename},
         )
-        extraction_id = self._queue_extraction(ctx, document, version)
-        self._commit_or_remove_file(version.storage_key)
-        self._start_extraction(extraction_id)
+        extraction_id = self.queue_extraction(ctx, document, version)
+        self.commit_or_remove_file(version.storage_key)
+        self.start_extraction(extraction_id)
         self.db.refresh(document)
         return document
 
-    def _queue_extraction(
+    def _ask_for_review(self, ctx: OrgContext, document: Document) -> None:
+        """Tell reviewers, in the app only, that a new document is waiting to be verified."""
+        if not ctx.has(Permission.DOCUMENTS_VERIFY):
+            emit(
+                self.db,
+                ctx.organization_id,
+                EventType.VERIFICATION_REQUIRED,
+                document_payload(document, actor=ctx.user),
+            )
+
+    def queue_extraction(
         self, ctx: OrgContext, document: Document, version: DocumentVersion
     ) -> uuid.UUID | None:
         """Create a pending extraction in the same transaction as the new file, if reading is on."""
@@ -152,7 +173,7 @@ class DocumentService:
         ExtractionRepository(self.db, ctx.organization_id).add(extraction)
         return extraction.id
 
-    def _start_extraction(self, extraction_id: uuid.UUID | None) -> None:
+    def start_extraction(self, extraction_id: uuid.UUID | None) -> None:
         """Queue the extraction after commit. In development without a worker it runs here and now."""
         if extraction_id is None:
             return
@@ -211,7 +232,21 @@ class DocumentService:
             resource_id=document.id,
             metadata={"name": document.name, "reason": document.rejection_reason},
         )
+        current = document.current_version
+        uploader = current.uploaded_by_id if current and current.uploaded_by_id else document.created_by_id
+        emit(
+            self.db,
+            ctx.organization_id,
+            EventType.DOCUMENT_REJECTED,
+            document_payload(
+                document,
+                actor=ctx.user,
+                reason=document.rejection_reason,
+                uploaded_by_id=str(uploader) if uploader else None,
+            ),
+        )
         self.db.commit()
+        kick_dispatcher()
         return document
 
     def set_archived(self, ctx: OrgContext, document_id: uuid.UUID, archived: bool) -> Document:
@@ -345,7 +380,7 @@ class DocumentService:
                 changed.append("owner_membership_id")
         return changed
 
-    def _store_version(
+    def store_version(
         self,
         ctx: OrgContext,
         document: Document,
@@ -353,6 +388,7 @@ class DocumentService:
         *,
         version_number: int,
         note: str | None,
+        state: str = "active",
     ) -> DocumentVersion:
         version_id = uuid.uuid4()
         key = document_key(ctx.organization_id, document.id, version_id, upload.extension)
@@ -362,6 +398,7 @@ class DocumentService:
             organization_id=ctx.organization_id,
             document_id=document.id,
             version_number=version_number,
+            state=state,
             storage_key=key,
             original_filename=upload.filename,
             content_type=upload.content_type,
@@ -373,7 +410,7 @@ class DocumentService:
         DocumentVersionRepository(self.db, ctx.organization_id).add(version)
         return version
 
-    def _commit_or_remove_file(self, storage_key: str) -> None:
+    def commit_or_remove_file(self, storage_key: str) -> None:
         """Commit; if the database rejects it, remove the file that was just stored so nothing is orphaned."""
         try:
             self.db.commit()

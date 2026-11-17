@@ -8,6 +8,16 @@ from app.models.document import (
     Entity,
     ExtractionStatus,
     VerificationStatus,
+    VersionState,
+)
+from app.models.lifecycle import (
+    EmailStatus,
+    Notification,
+    OutboxEvent,
+    OutboxStatus,
+    Renewal,
+    RenewalEvent,
+    RenewalStatus,
 )
 from app.models.organization import Invitation, Membership, Organization
 from app.models.user import RefreshToken, User, UserToken, UserTokenPurpose
@@ -27,4 +37,12 @@ __all__ = [
     "UserToken",
     "UserTokenPurpose",
     "VerificationStatus",
+    "VersionState",
+    "EmailStatus",
+    "Notification",
+    "OutboxEvent",
+    "OutboxStatus",
+    "Renewal",
+    "RenewalEvent",
+    "RenewalStatus",
 ]

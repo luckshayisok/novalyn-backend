@@ -24,7 +24,7 @@ def suggestions_waiting() -> ColumnElement[bool]:
     """The document's current file has suggested details that nobody has reviewed yet."""
     current_number = (
         select(func.max(DocumentVersion.version_number))
-        .where(DocumentVersion.document_id == Document.id)
+        .where(DocumentVersion.document_id == Document.id, DocumentVersion.state == "active")
         .correlate(Document)
         .scalar_subquery()
     )

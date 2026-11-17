@@ -65,6 +65,19 @@ class OrganizationUpdate(_OrganizationFields):
     company_size: str | None = None
     timezone: str | None = None
     document_categories: list[str] | None = None
+    reminders_enabled: bool | None = None
+    reminder_offsets: list[int] | None = None
+
+    @field_validator("reminder_offsets")
+    @classmethod
+    def _offsets(cls, value: list[int] | None) -> list[int] | None:
+        if value is None:
+            return None
+        if len(value) > 10:
+            raise ValueError("Use at most 10 reminder days")
+        if any(day < 0 or day > 365 for day in value):
+            raise ValueError("Reminder days must be between 0 and 365")
+        return sorted(set(value), reverse=True)
 
     @field_validator("document_categories")
     @classmethod
@@ -80,7 +93,7 @@ class OrganizationUpdate(_OrganizationFields):
     def changes(self) -> dict[str, Any]:
         """Only the fields the client sent. `name` and `timezone` cannot be cleared."""
         data = self.model_dump(exclude_unset=True)
-        for required in ("name", "timezone", "document_categories"):
+        for required in ("name", "timezone", "document_categories", "reminders_enabled", "reminder_offsets"):
             if required in data and data[required] is None:
                 del data[required]
         return data
@@ -95,6 +108,8 @@ class OrganizationOut(Schema):
     timezone: str
     document_categories: list[str]
     onboarding_completed_at: datetime | None
+    reminders_enabled: bool
+    reminder_offsets: list[int]
     created_at: datetime
     role: Role
     permissions: list[str]
@@ -111,6 +126,8 @@ class OrganizationOut(Schema):
             timezone=organization.timezone,
             document_categories=list(organization.document_categories or []),
             onboarding_completed_at=organization.onboarding_completed_at,
+            reminders_enabled=organization.reminders_enabled,
+            reminder_offsets=sorted(organization.reminder_offsets or [], reverse=True),
             created_at=organization.created_at,
             role=role,
             permissions=sorted(permission.value for permission in permissions_for(role)),

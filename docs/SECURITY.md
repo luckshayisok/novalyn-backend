@@ -98,6 +98,15 @@ gaps that remain. It is not a certification and makes no legal compliance claim.
   to 25 MB, images up to 60 megapixels, and the worker task has a time limit.
 - Error messages shown to users never include internal details.
 
+### Notifications and renewals
+- Each person can list and mark only their own notifications.
+- Recipients are worked out from current memberships when an event is
+  delivered, so someone removed from an organization stops receiving its
+  notices. Emails go only to confirmed addresses.
+- Notification text contains document names and dates, never file contents.
+- A renewed file cannot become the current file without a manager with
+  verify permission approving it; rejected files are kept for the record.
+
 ### Rate limiting
 - Fixed-window limits on authentication, invitation and organization-creation
   endpoints (see `API_DOCUMENTATION.md`). Counters are in memory for a single

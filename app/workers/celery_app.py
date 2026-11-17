@@ -5,6 +5,7 @@ the calling process and no broker is needed.
 """
 
 from celery import Celery
+from celery.schedules import crontab
 
 from app.core.config import get_settings
 
@@ -29,4 +30,10 @@ celery_app.conf.update(
     timezone="UTC",
     enable_utc=True,
     broker_connection_retry_on_startup=True,
+    # Celery Beat: reminders hourly (each organization's day starts at its own midnight),
+    # and a sweep of the notification outbox every minute in case a wake-up was lost.
+    beat_schedule={
+        "scan-expiries": {"task": "lifecycle.scan_expiries", "schedule": crontab(minute=5)},
+        "dispatch-outbox": {"task": "notifications.dispatch_outbox", "schedule": 60.0},
+    },
 )

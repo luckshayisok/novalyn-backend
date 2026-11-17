@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, ForeignKey, Index, String, UniqueConstraint, Uuid, text
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Index, String, UniqueConstraint, Uuid, text, true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -13,6 +13,9 @@ from app.models.types import JSONType, UTCDateTime
 from app.models.user import User
 
 _ROLE_VALUES = ", ".join(f"'{role.value}'" for role in Role)
+
+# Days before expiry at which reminders go out. 0 is the expiry day itself.
+DEFAULT_REMINDER_OFFSETS = [60, 30, 7, 1, 0]
 
 
 class Organization(UUIDPrimaryKey, Timestamps, Base):
@@ -27,6 +30,15 @@ class Organization(UUIDPrimaryKey, Timestamps, Base):
     timezone: Mapped[str] = mapped_column(String(64), default="UTC", nullable=False)
     document_categories: Mapped[list[str]] = mapped_column(JSONType, default=list, nullable=False)
     onboarding_completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    reminders_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=true(), nullable=False
+    )
+    reminder_offsets: Mapped[list[int]] = mapped_column(
+        JSONType,
+        default=lambda: list(DEFAULT_REMINDER_OFFSETS),
+        server_default=text("'[60, 30, 7, 1, 0]'"),
+        nullable=False,
+    )
     created_by_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("users.id", ondelete="SET NULL"))
 
 

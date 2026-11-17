@@ -232,6 +232,7 @@ class VersionOut(Schema):
     uploaded_by_name: str | None
     created_at: datetime
     previewable: bool
+    state: Literal["active", "pending", "rejected"]
 
     @classmethod
     def build(cls, version: DocumentVersion) -> "VersionOut":
@@ -246,6 +247,27 @@ class VersionOut(Schema):
             uploaded_by_name=version.uploaded_by.full_name if version.uploaded_by else None,
             created_at=version.created_at,
             previewable=version.content_type in INLINE_CONTENT_TYPES,
+            state=version.state,
+        )
+
+
+class OpenRenewalOut(Schema):
+    """The renewal in progress for a document."""
+
+    id: uuid.UUID
+    status: str
+    deadline: date | None
+    assignee: "OwnerOut | None"
+
+    @classmethod
+    def build(cls, renewal) -> "OpenRenewalOut | None":
+        if renewal is None:
+            return None
+        return cls(
+            id=renewal.id,
+            status=renewal.status,
+            deadline=renewal.deadline,
+            assignee=OwnerOut.build(renewal.assignee),
         )
 
 
@@ -270,6 +292,7 @@ class DocumentOut(Schema):
     current_version: VersionOut | None
     version_count: int
     extraction_status: str | None
+    renewal: "OpenRenewalOut | None" = None
     archived_at: datetime | None
     created_at: datetime
     updated_at: datetime
@@ -298,6 +321,7 @@ class DocumentOut(Schema):
             "current_version": VersionOut.build(current) if current else None,
             "version_count": len(document.versions),
             "extraction_status": current.extraction.status if current and current.extraction else None,
+            "renewal": OpenRenewalOut.build(getattr(document, "open_renewal", None)),
             "archived_at": document.archived_at,
             "created_at": document.created_at,
             "updated_at": document.updated_at,
@@ -330,6 +354,9 @@ class DashboardMetrics(Schema):
     pending_verification: int
     archived: int
     suggestions_to_review: int = 0
+    renewals_in_progress: int = 0
+    renewals_overdue: int = 0
+    renewals_awaiting_approval: int = 0
 
 
 class CategoryCount(Schema):
@@ -350,6 +377,23 @@ class GroupCountOut(Schema):
     count: int
 
 
+class DashboardRenewalOut(Schema):
+    id: uuid.UUID
+    status: str
+    deadline: date | None
+    days_to_deadline: int | None
+    overdue: bool
+    document_id: uuid.UUID
+    document_name: str
+    assignee_name: str | None
+
+
+class RenewalTrendOut(Schema):
+    month: str  # YYYY-MM
+    started: int
+    completed: int
+
+
 class DashboardOut(Schema):
     today: date
     expiring_window_days: int
@@ -361,6 +405,8 @@ class DashboardOut(Schema):
     expiring_documents: list[DocumentOut]
     expired_documents: list[DocumentOut]
     recent_documents: list[DocumentOut]
+    open_renewals: list[DashboardRenewalOut]
+    renewal_trend: list[RenewalTrendOut]
 
     @classmethod
     def build(cls, dashboard: Dashboard) -> "DashboardOut":
@@ -388,6 +434,23 @@ class DashboardOut(Schema):
             expiring_documents=[DocumentOut.build(item, today) for item in dashboard.expiring_documents],
             expired_documents=[DocumentOut.build(item, today) for item in dashboard.expired_documents],
             recent_documents=[DocumentOut.build(item, today) for item in dashboard.recent_documents],
+            open_renewals=[
+                DashboardRenewalOut(
+                    id=renewal.id,
+                    status=renewal.status,
+                    deadline=renewal.deadline,
+                    days_to_deadline=(renewal.deadline - today).days if renewal.deadline else None,
+                    overdue=bool(renewal.deadline and renewal.deadline < today),
+                    document_id=renewal.document_id,
+                    document_name=renewal.document.name,
+                    assignee_name=renewal.assignee.user.full_name if renewal.assignee else None,
+                )
+                for renewal in dashboard.open_renewals
+            ],
+            renewal_trend=[
+                RenewalTrendOut(month=month, started=started, completed=completed)
+                for month, started, completed in dashboard.renewal_trend
+            ],
         )
 
 

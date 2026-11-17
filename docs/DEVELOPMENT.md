@@ -219,3 +219,27 @@ worker in production.
 Code: `app/services/extraction.py` (pipeline), `app/services/text_extraction.py`,
 `app/services/extraction_rules.py` (deterministic checks),
 `app/integrations/ai/` (readers), `app/integrations/ocr/`.
+
+## Reminders and notifications
+
+Production runs a Celery worker and Celery Beat. Beat starts the reminder
+scan every hour and sweeps the notification outbox every minute.
+
+Without them (the default for local development) notifications triggered by
+an action are still delivered at once, because tasks run inline. Reminders,
+which depend on the date, need a scan; run it by hand:
+
+```bash
+.venv/Scripts/python -m app.cli scan-expiries
+.venv/Scripts/python -m app.cli dispatch
+```
+
+With Redis available:
+
+```bash
+.venv/Scripts/python -m celery -A app.workers.celery_app worker --loglevel=INFO
+.venv/Scripts/python -m celery -A app.workers.celery_app beat --loglevel=INFO
+```
+
+Code: `app/services/reminders.py`, `app/services/notifications.py`
+(outbox, recipients, wording, dispatcher), `app/services/renewals.py`.

@@ -10,6 +10,7 @@
 |---|---|---|
 | API | `backend/Dockerfile` | `uvicorn`, port 8000, health at `/health/ready` |
 | Worker | same image | `celery -A app.workers.celery_app worker` |
+| Scheduler | same image | `celery -A app.workers.celery_app beat`. Run exactly one |
 | Web | `frontend/Dockerfile` | nginx serving the built app and proxying `/api` to the API |
 | PostgreSQL | managed service recommended | version 15 or newer |
 | Redis | managed service recommended | version 7 or newer |

@@ -1,6 +1,6 @@
 """Dashboard figures and global search. Everything is computed from the organization's own records."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, timedelta
 
 from sqlalchemy import select
@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.models import Document, Entity
 from app.repositories.documents import DocumentRepository, EntityRepository, _contains
 from app.services.context import OrgContext
-from app.services.expiry import expiring_window_days, organization_today
+from app.services.expiry import expiring_window_days, organization_today, organization_zone
 
 UPCOMING_MONTHS = 6
 LIST_SIZE = 8
@@ -36,6 +36,8 @@ class Dashboard:
     expiring_documents: list[Document]
     expired_documents: list[Document]
     recent_documents: list[Document]
+    open_renewals: list = field(default_factory=list)
+    renewal_trend: list[tuple[str, int, int]] = field(default_factory=list)
 
 
 def _month_key(day: date) -> str:
@@ -60,6 +62,37 @@ class DashboardService:
         from app.services.extraction import ExtractionRepository
 
         metrics["suggestions_to_review"] = ExtractionRepository(self.db, ctx.organization_id).count_ready()
+
+        from app.models import Renewal, RenewalStatus
+        from app.services.renewals import RenewalRepository
+
+        renewals = RenewalRepository(self.db, ctx.organization_id)
+        counts = renewals.counts(today)
+        metrics["renewals_in_progress"] = counts["open"]
+        metrics["renewals_overdue"] = counts["overdue"]
+        metrics["renewals_awaiting_approval"] = counts["awaiting_approval"]
+        open_renewals, _ = renewals.list(
+            statuses=RenewalStatus.OPEN, assignee_id=None, page=1, page_size=LIST_SIZE
+        )
+
+        # Renewals started and completed in each of the last six months, this month included.
+        first_month = today.replace(day=1)
+        trend_start = _add_months(first_month, -(UPCOMING_MONTHS - 1))
+        trend = {_month_key(_add_months(trend_start, offset)): [0, 0] for offset in range(UPCOMING_MONTHS)}
+        rows = self.db.execute(
+            select(Renewal.created_at, Renewal.completed_at, Renewal.status).where(
+                Renewal.organization_id == ctx.organization_id
+            )
+        ).all()
+        zone = organization_zone(ctx.organization.timezone)
+        for created_at, completed_at, status in rows:
+            started = _month_key(created_at.astimezone(zone).date())
+            if started in trend:
+                trend[started][0] += 1
+            if status == RenewalStatus.COMPLETED and completed_at is not None:
+                finished = _month_key(completed_at.astimezone(zone).date())
+                if finished in trend:
+                    trend[finished][1] += 1
 
         # Expirations per calendar month, from today to the end of the sixth month.
         first_month = today.replace(day=1)
@@ -99,6 +132,8 @@ class DashboardService:
             expiring_documents=expiring,
             expired_documents=expired,
             recent_documents=recent,
+            open_renewals=open_renewals,
+            renewal_trend=[(month, started, completed) for month, (started, completed) in trend.items()],
         )
 
     def _by_location_or_department(

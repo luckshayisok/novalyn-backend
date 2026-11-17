@@ -146,10 +146,47 @@ verified, `[ ]` not started.
 - [x] Save and verify: seven fields saved, document verified, panel shows who reviewed it
 
 ## Phase 4 — Lifecycle automation
-- [ ] Expiry service and document statuses
-- [ ] Reminder policies, duplicate prevention
-- [ ] Outbox, email and in-app notifications, Celery Beat
-- [ ] Renewal workflow and version history
+
+### Backend
+- [x] Hourly reminder scan using each organization's own date; configurable reminder days (default 60/30/7/1/0)
+- [x] One reminder per threshold, catch-up after a missed scan, "expired" alert, weekly overdue alerts for 12 weeks
+- [x] Duplicate prevention with dedupe keys (document, expiry date, threshold); a new expiry date starts a new cycle
+- [x] Outbox written in the same transaction as each change; dispatcher with claims, retries and backoff
+- [x] In-app notifications (unique per event and person) and email, with per-email retry and give-up after 5 failures
+- [x] Events: expiring, expired, overdue, verification required, document rejected, renewal requested,
+      awaiting approval, completed, rejected
+- [x] Renewal workflow: not started, requested, in progress, submitted, awaiting approval, completed, rejected, reopen
+- [x] Renewed files stay pending until approval; rejected files kept and marked; approval applies dates and verifies
+- [x] One open renewal per document; direct file replacement blocked while one is open
+- [x] Renewal history, audit entries, dashboard figures and monthly trend
+- [x] Celery Beat schedule, `scan-expiries` and `dispatch` commands
+- [x] Migration `0004`; 317 backend tests pass
+
+### Frontend
+- [x] Notification bell with unread count, list, mark read, open the linked page
+- [x] Renewals page (in progress, overdue, awaiting approval, closed, assigned to me)
+- [x] Renewal page: progress, actions by role and state, upload with dates, send for approval, approve, reject, reopen, history
+- [x] "Start renewal" on the document page, renewal banner, version states in the history
+- [x] Reminder settings in organization settings
+- [x] Dashboard renewals panel and "renewals per month" chart
+
+### Checked by hand in a browser
+- [x] Bell shows reminders produced by a scan
+- [x] Start renewal and assign; upload the renewed file; send for approval; approve
+- [x] After approval the document is valid and verified, with the renewed file as the current version
+- [x] Add a reminder day in settings and save
+- [x] Dashboard renewals panel and chart render
+
+### Not verified
+- [~] Not clicked in the browser: reject and reopen, reassigning, the overdue tab, mark-all-read
+      (covered by backend tests)
+- [~] Celery Beat and a real worker have not run; the schedule is configured and the tasks are tested directly
+- [~] Emails were checked in the development mailbox (files), not through a real SMTP server
+
+### Left over
+- [ ] Per-document-type reminder schedules (one schedule per organization today)
+- [ ] Per-person notification preferences (who gets email for what)
+- [ ] Webhooks for notification events
 
 ## Phase 5 — Business features
 - [ ] Compliance calendar

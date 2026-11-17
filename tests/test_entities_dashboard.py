@@ -213,6 +213,9 @@ def test_dashboard_of_an_empty_organization_is_all_zeros(org):
         "pending_verification": 0,
         "archived": 0,
         "suggestions_to_review": 0,
+        "renewals_in_progress": 0,
+        "renewals_overdue": 0,
+        "renewals_awaiting_approval": 0,
     }
     assert body["by_category"] == []
     assert len(body["upcoming_expirations"]) == 6
@@ -259,6 +262,9 @@ def test_dashboard_figures_match_the_documents(org):
         "archived": 1,
         # The sample files have no readable text, so there are no suggestions to review.
         "suggestions_to_review": 0,
+        "renewals_in_progress": 0,
+        "renewals_overdue": 0,
+        "renewals_awaiting_approval": 0,
     }
     assert [(item["category"], item["count"]) for item in body["by_category"]] == [
         ("permit", 3),

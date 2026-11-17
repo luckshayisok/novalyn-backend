@@ -77,6 +77,18 @@ services:
       redis:
         condition: service_healthy
 
+  beat:
+    build: .
+    command: celery -A app.workers.celery_app beat --loglevel=INFO --schedule /tmp/celerybeat-schedule
+    environment: *backend-env
+    healthcheck:
+      disable: true
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
   web:
     build: ../novalyn-frontend
     ports:

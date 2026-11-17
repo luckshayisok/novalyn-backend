@@ -350,3 +350,55 @@ Document objects gain `extraction_status`; the library accepts
 `suggestions=true`; the dashboard gains `metrics.suggestions_to_review`.
 Audit actions: `document.extraction_applied`, `document.extraction_dismissed`,
 `document.extraction_retried`.
+
+## Notifications
+
+Under `/organizations/{id}/notifications`. Every member sees only their own.
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `` | Newest first. Query: `unread=true`, `page`, `page_size` |
+| GET | `/unread-count` | `{ "unread": 3 }` |
+| POST | `/{notification_id}/read` | Mark one as read |
+| POST | `/read-all` | Mark all as read. `204` |
+
+A notification is `{ id, type, title, body, link, read_at, created_at }`;
+`link` is a path inside the organization such as `documents/<id>` or
+`renewals/<id>`. Types: `document.expiring`, `document.expired`,
+`document.overdue`, `document.verification_required` (in-app only),
+`document.rejected`, `renewal.requested`, `renewal.awaiting_approval`,
+`renewal.completed`, `renewal.rejected`.
+
+## Renewals
+
+Under `/organizations/{id}/renewals`. Reading needs `renewals:read` (every role).
+
+| Method | Path | Who | Description |
+|---|---|---|---|
+| GET | `` | any | Query: `status` (`open` default, `overdue`, `closed`, or a status), `mine=true`, `page`, `page_size` |
+| POST | `` | manager | `{ document_id, assignee_membership_id?, deadline?, notes?, request }`. `request: true` asks the assignee now |
+| GET | `/{renewal_id}` | any | Detail with history and `can` (the actions the caller may take now) |
+| PATCH | `/{renewal_id}` | manager | Change `assignee_membership_id`, `deadline`, `notes` |
+| POST | `/{renewal_id}/request` | manager | Ask the assignee |
+| POST | `/{renewal_id}/start` | assignee or manager | |
+| POST | `/{renewal_id}/file` | assignee or manager | Multipart: `file`, optional `issue_date`, `expiry_date`, `note` |
+| POST | `/{renewal_id}/submit` | assignee or manager | Send for approval. Needs a file, and a new expiry date if the document had one |
+| POST | `/{renewal_id}/approve` | manager with `documents:verify` | The file becomes current, the dates apply, the document is verified |
+| POST | `/{renewal_id}/reject` | manager | `{ "reason" }`; the uploaded file is kept, marked not used |
+| POST | `/{renewal_id}/reopen` | manager | A rejected renewal goes back to in progress |
+
+"Manager" means owner, admin or compliance manager. Errors:
+`409 renewal_exists` (one open renewal per document),
+`409 renewal_wrong_status`, `409 renewal_no_file`, `422 renewal_no_expiry`,
+and on the document endpoints `409 renewal_in_progress` when a direct file
+replacement is attempted during a renewal.
+
+Statuses: `not_started`, `requested`, `in_progress`, `submitted` (file
+uploaded), `awaiting_approval`, `completed`, `rejected`. Document versions
+have a `state`: `active`, `pending` (waiting for renewal approval) or
+`rejected`. Documents carry `renewal` (the open renewal, or null).
+
+Organizations gain `reminders_enabled` and `reminder_offsets` (days before
+expiry, 0 to 365, at most 10). The dashboard gains `renewals_in_progress`,
+`renewals_overdue`, `renewals_awaiting_approval`, `open_renewals` and
+`renewal_trend`.

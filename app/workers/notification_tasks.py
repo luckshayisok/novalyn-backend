@@ -37,3 +37,23 @@ def enqueue_email(message: EmailMessage) -> bool:
     except Exception:
         logger.exception("Could not queue email", extra={"email_subject": message.subject})
         return False
+
+
+@celery_app.task(name="notifications.dispatch_outbox", soft_time_limit=240, time_limit=300)
+def dispatch_outbox_task() -> int:
+    """Deliver pending notification events. Runs every minute, and right after changes that emit events."""
+    from app.core.database import SessionLocal
+    from app.services.notifications import Dispatcher
+
+    with SessionLocal() as db:
+        return Dispatcher(db).run()
+
+
+@celery_app.task(name="lifecycle.scan_expiries", soft_time_limit=600, time_limit=900)
+def scan_expiries_task() -> int:
+    """Emit the expiry reminders that are due. Runs every hour."""
+    from app.core.database import SessionLocal
+    from app.services.reminders import ReminderScanner
+
+    with SessionLocal() as db:
+        return ReminderScanner(db).run()
