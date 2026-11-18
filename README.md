@@ -9,8 +9,8 @@ nobody misses a renewal.
 
 ## Status
 
-Phases 1 to 5 of 6 (Foundation, Core product, Document intelligence, Lifecycle automation, Business features)
-are complete. What works today:
+All six phases (Foundation, Core product, Document intelligence, Lifecycle automation, Business features,
+Production readiness) are complete. What works today:
 
 - Accounts: registration, sign in, email confirmation, password reset,
   rotating sessions, sign out everywhere
@@ -34,8 +34,12 @@ are complete. What works today:
 - Plans (Free, Starter, Growth, Business) with limits enforced on the server, Stripe and Razorpay checkout through
   signed webhooks, and billing history. Online payment stays off until provider keys are configured
 
-Production hardening is the last phase. [`TASKS.md`](docs/TASKS.md) lists exactly what is done, what is
-not, and what has not been verified. [`IMPLEMENTATION_ROADMAP.md`](docs/IMPLEMENTATION_ROADMAP.md) has the plan.
+- Production readiness: PostgreSQL Row-Level Security on every tenant table, Content-Security-Policy,
+  leaked-password check and malware scanning (when configured), organization and account deletion,
+  retention, backup and restore scripts, CI, and a browser end-to-end test of the customer journey
+
+It has not been deployed to a real environment yet. [`TASKS.md`](docs/TASKS.md) lists exactly what is done,
+what is not, and what has not been verified. [`IMPLEMENTATION_ROADMAP.md`](docs/IMPLEMENTATION_ROADMAP.md) has the plan.
 
 ## Repositories
 

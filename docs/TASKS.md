@@ -1,6 +1,6 @@
 # NOVALYN — Tasks
 
-Status as of the end of Phase 2. `[x]` done and verified, `[~]` written but not
+Status as of the end of Phase 6. Items closed in a later phase say which. `[x]` done and verified, `[~]` written but not
 verified, `[ ]` not started.
 
 ## Phase 1 — Foundation
@@ -49,7 +49,7 @@ verified, `[ ]` not started.
 ### Not verified
 - [~] Dockerfiles, `docker-compose.yml`, nginx configuration: written, never
       built or run (no Docker on the build machine)
-- [~] PostgreSQL: the migration and tests have run on SQLite only
+- [x] PostgreSQL: migrations and the full suite run on PostgreSQL 18 (Phase 6)
 - [~] SMTP sender: not run against a mail server
 - [~] Redis rate limiter and a real Celery worker: tested with an in-memory
       fake and inline execution only
@@ -59,12 +59,13 @@ verified, `[ ]` not started.
       backend tests
 
 ### Left over from Phase 1
-- [ ] Onboarding step 6 (first document upload) — needs Phase 2
-- [ ] Header global search, notifications and help — need Phases 2 and 4
-- [ ] Frontend automated tests and browser end-to-end tests — Phase 6
-- [ ] Split the JavaScript bundle (740 kB before compression)
-- [ ] Delete unused Vite sample files: `frontend/src/App.css`,
-      `frontend/src/assets/`, `frontend/public/icons.svg`
+- [x] Onboarding step 6 (first document upload) (Phase 2)
+- [x] Header global search (Phase 2) and notifications (Phase 4)
+- [ ] Help menu in the header
+- [x] Browser end-to-end test of the customer journey (Phase 6)
+- [ ] Frontend unit tests
+- [x] Split the JavaScript bundle (Phase 6)
+- [x] Delete unused Vite sample files (Phase 6)
 - [ ] Install `httpx2` for the test client when moving off the deprecated
       `httpx` integration (one deprecation warning today)
 
@@ -107,10 +108,10 @@ verified, `[ ]` not started.
 - [~] The new pages were checked as page text; the browser pane was hidden, so they were not looked at visually
 
 ### Left over
-- [ ] Split the JavaScript bundle; it is now 1.2 MB (357 kB compressed) with the chart library
-- [ ] Malware scanning of uploads (Phase 6)
-- [ ] "Renewals in progress" figure and "monthly renewal trends" chart need renewals (Phase 4)
-- [ ] Notifications and help in the header (Phase 4)
+- [x] Split the JavaScript bundle (Phase 6)
+- [x] Malware scanning of uploads (Phase 6)
+- [x] "Renewals in progress" figure and "renewals per month" chart (Phase 4)
+- [x] Notifications in the header (Phase 4); help menu still open (see Phase 1)
 
 ## Phase 3 — Document intelligence
 
@@ -240,9 +241,60 @@ verified, `[ ]` not started.
 - [ ] Scheduled report emails; audit log export (the activity report covers the CSV/PDF case)
 
 ## Phase 6 — Production readiness
-- [ ] PostgreSQL Row-Level Security
-- [ ] Security review, Content-Security-Policy, breached-password check
-- [ ] Performance and tenant-isolation testing on PostgreSQL
-- [ ] Browser end-to-end test of the full customer journey
-- [ ] Backups, retention and deletion workflows
-- [ ] Deployment verified end to end
+
+### Backend
+- [x] PostgreSQL Row-Level Security on all 13 tenant-owned tables (migration `0006`), forced for the table
+      owner. Each transaction carries the organization, the signed-in user and an explicit system scope;
+      settings are transaction-local, so pooled connections cannot leak them
+- [x] System scope only for jobs, the CLI, verified payment webhooks and the invitation-token lookup
+- [x] Startup refuses a database role that skips row security (superuser or BYPASSRLS) in production
+- [x] Full suite on PostgreSQL 18 as an ordinary role: 386 tests pass; RLS tests use raw SQL below the ORM
+      (no tenant means no rows, writes into another organization refused, no leak across pooled connections)
+- [x] Guard test: a new table with `organization_id` must get a policy
+- [x] Migrations from scratch, down to nothing and up again on PostgreSQL; no model drift
+- [x] Leaked-password check (Have I Been Pwned range API, k-anonymity; off by default, fails open)
+- [x] Malware scanning (ClamAV over clamd INSTREAM; fails closed), tested against a fake daemon
+- [x] API security headers: strict Content-Security-Policy on API responses, HSTS in production
+- [x] Organization deletion: owner schedules with the name typed, 30-day grace period, owners and admins
+      emailed, cancel any time, blocked while a paid subscription is active, unreachable after the date,
+      nightly erase of files then rows (migration `0007`)
+- [x] Account deletion with password; refused for the only owner of a live organization; audit keeps
+      that a member left, not who
+- [x] Retention: ended sessions, used links, delivered notification events, read notifications, closed
+      invitations and old payment webhooks removed nightly (configurable)
+- [x] Nightly maintenance task in Celery Beat; `maintenance` CLI command
+- [x] Backup and restore scripts; round trip verified on PostgreSQL 18, policies restored, app signs in
+- [x] Docker Compose connects as an ordinary role (init script); optional ClamAV service
+- [x] CI: lint, SQLite suite, PostgreSQL suite as an ordinary role, migration cycle, backup round trip
+
+### Frontend
+- [x] Pages load on demand: main bundle 1,288 kB to 621 kB; charts (403 kB) only with the dashboard
+- [x] Content-Security-Policy for the app (`script-src 'self'`), in nginx and in `npm run preview`
+- [x] nginx: security headers now reach the app's pages, and no longer override the API's headers on
+      file previews (both were wrong before)
+- [x] Delete organization (typed confirmation, scheduled state, cancel) and a banner on every page while
+      deletion is scheduled; delete account
+- [x] End-to-end test of the customer journey (Playwright) on the production build with the production CSP
+- [x] CI: type-check, lint, build, end-to-end test against the backend repository
+
+### Checked by hand in a browser
+- [x] Production build under the CSP: dashboard, charts, PDF preview in a frame, image preview, dialogs and
+      toasts, with no policy violations
+- [x] Schedule deletion (wrong name refused in the dialog), banner on every page, cancel
+- [x] End-to-end journey passes in Microsoft Edge
+
+### Not verified
+- [~] CI workflows were written and their steps run locally, but have not run on GitHub yet
+- [~] Docker images and Compose were not built (no Docker on the build machine); the PostgreSQL init script
+      repeats the role setup that was run by hand
+- [~] ClamAV itself was not run; the adapter is tested against a fake daemon speaking the same protocol
+- [~] The leaked-password service was not called for real; the request format is tested
+- [~] Dev-only dependency advisory: `picomatch` (via Vite) ReDoS, build tooling only; production
+      dependencies have no known vulnerabilities
+
+### Left over
+- [ ] Deployment to a real environment, checked end to end (needs a host, a domain and secrets)
+- [ ] Multi-factor authentication and single sign-on
+- [ ] Performance testing with realistic data volumes
+- [ ] Export of an organization's data before deletion
+- [ ] Publish a security contact and `/.well-known/security.txt`

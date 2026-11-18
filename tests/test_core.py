@@ -159,7 +159,9 @@ def test_production_refuses_to_start_with_unsafe_settings(override, fragment):
         _production(**override)
 
 
-def test_development_defaults_need_no_configuration():
+def test_development_defaults_need_no_configuration(monkeypatch):
+    # The suite itself sets DATABASE_URL (SQLite or PostgreSQL); this test is about the built-in default.
+    monkeypatch.delenv("DATABASE_URL", raising=False)
     settings = Settings(_env_file=None, environment="development")
 
     assert settings.is_sqlite

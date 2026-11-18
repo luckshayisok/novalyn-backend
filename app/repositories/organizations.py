@@ -2,10 +2,11 @@
 
 import uuid
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.permissions import Role
+from app.core.time import utcnow
 from app.models import Invitation, Membership, Organization, User
 from app.repositories.base import TenantRepository
 
@@ -30,7 +31,14 @@ class OrganizationRepository:
         rows = self.db.execute(
             select(Organization, Membership)
             .join(Membership, Membership.organization_id == Organization.id)
-            .where(Membership.user_id == user_id)
+            .where(
+                Membership.user_id == user_id,
+                # Organizations past their deletion date are gone, even before the nightly job erases them.
+                or_(
+                    Organization.deletion_scheduled_for.is_(None),
+                    Organization.deletion_scheduled_for > utcnow(),
+                ),
+            )
             .order_by(Organization.name)
         ).all()
         return [(row[0], row[1]) for row in rows]

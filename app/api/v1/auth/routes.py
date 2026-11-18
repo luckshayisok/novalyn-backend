@@ -18,6 +18,7 @@ from app.core.time import utcnow
 from app.models import User
 from app.schemas.auth import (
     ChangePasswordRequest,
+    DeleteAccountRequest,
     ForgotPasswordRequest,
     LoginRequest,
     RegisterRequest,
@@ -220,3 +221,20 @@ def change_password(
         current_family_id=family_id,
     )
     return Message(message="Your password has been changed. Other devices have been signed out.")
+
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+def delete_account(
+    payload: DeleteAccountRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    meta: RequestMeta = Depends(get_request_meta),
+) -> Response:
+    """Delete the signed-in person's account for good. Needs the password."""
+    from app.services.data_lifecycle import AccountDeletionService
+
+    enforce(f"delete-account:{user.id}", 5, 900)
+    AccountDeletionService(db).delete(user, password=payload.password, meta=meta)
+    response = Response(status_code=status.HTTP_204_NO_CONTENT)
+    _clear_refresh_cookie(response)
+    return response

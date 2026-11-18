@@ -15,7 +15,7 @@ celery_app = Celery(
     "novalyn",
     broker=settings.broker_url or "memory://",
     backend=settings.celery_result_backend,
-    include=["app.workers.notification_tasks", "app.workers.document_tasks"],
+    include=["app.workers.notification_tasks", "app.workers.document_tasks", "app.workers.maintenance_tasks"],
 )
 
 celery_app.conf.update(
@@ -35,5 +35,7 @@ celery_app.conf.update(
     beat_schedule={
         "scan-expiries": {"task": "lifecycle.scan_expiries", "schedule": crontab(minute=5)},
         "dispatch-outbox": {"task": "notifications.dispatch_outbox", "schedule": 60.0},
+        # Erase organizations past their deletion date, then remove expired records.
+        "nightly-maintenance": {"task": "maintenance.nightly", "schedule": crontab(hour=3, minute=15)},
     },
 )

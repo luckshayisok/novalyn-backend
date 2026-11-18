@@ -13,7 +13,7 @@ import uuid
 import pytest
 
 from app.core.config import get_settings
-from app.core.database import SessionLocal
+from app.core.database import system_session
 from app.integrations.payments.razorpay_provider import RazorpayProvider
 from app.integrations.payments.stripe_provider import StripeProvider
 from app.models import BillingEvent, Invoice
@@ -256,7 +256,7 @@ def test_a_resent_event_is_applied_once(owner, org, stripe, client):
     set_plan(org, "starter")  # if the resend were applied again, it would move the plan back
     assert stripe_webhook(client, event).json()["message"] == "duplicate"
     assert billing(owner, org)["subscription"]["plan"] == "starter"
-    with SessionLocal() as db:
+    with system_session() as db:
         assert db.query(BillingEvent).count() == 1
 
 
@@ -373,7 +373,7 @@ def test_events_for_unknown_organizations_are_recorded_and_ignored(stripe, clien
     response = stripe_webhook(client, subscription_event(str(uuid.uuid4())))
     assert response.status_code == 200
     assert response.json()["message"] == "ignored"
-    with SessionLocal() as db:
+    with system_session() as db:
         assert db.query(BillingEvent).one().error == "No matching organization"
         assert db.query(Invoice).count() == 0
 

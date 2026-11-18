@@ -14,7 +14,7 @@ from app.core.permissions import Role, invitable_roles
 from app.core.plans import Feature
 from app.core.rate_limit import enforce
 from app.core.security import generate_token, hash_token
-from app.core.tenancy import set_tenant
+from app.core.tenancy import all_tenants, set_tenant
 from app.core.time import utcnow
 from app.integrations.email import templates
 from app.models import Invitation, Membership, Organization, User
@@ -235,9 +235,12 @@ class InvitationService:
         return invitation
 
     def _get_by_token(self, raw_token: str) -> Invitation:
-        invitation = get_invitation_by_token_hash(self.db, hash_token(raw_token))
+        # The token is the credential and names the organization only once found.
+        with all_tenants(self.db):
+            invitation = get_invitation_by_token_hash(self.db, hash_token(raw_token))
         if invitation is None:
             raise NotFoundError("This invitation was not found.")
+        set_tenant(self.db, invitation.organization_id)
         return invitation
 
     def _send(

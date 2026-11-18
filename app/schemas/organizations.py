@@ -111,6 +111,7 @@ class OrganizationOut(Schema):
     reminders_enabled: bool
     reminder_offsets: list[int]
     created_at: datetime
+    deletion_scheduled_for: datetime | None = None
     role: Role
     permissions: list[str]
 
@@ -129,6 +130,7 @@ class OrganizationOut(Schema):
             reminders_enabled=organization.reminders_enabled,
             reminder_offsets=sorted(organization.reminder_offsets or [], reverse=True),
             created_at=organization.created_at,
+            deletion_scheduled_for=organization.deletion_scheduled_for,
             role=role,
             permissions=sorted(permission.value for permission in permissions_for(role)),
         )
@@ -203,3 +205,7 @@ class OptionsOut(Schema):
     company_sizes: list[Option]
     document_categories: list[Option]
     roles: list[Option]
+
+
+class DeletionRequest(Schema):
+    confirm_name: str = Field(min_length=1, max_length=200)

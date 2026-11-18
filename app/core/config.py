@@ -102,6 +102,25 @@ class Settings(BaseSettings):
     razorpay_plan_growth_year: str | None = None
     sales_email: str = "sales@novalyn.example"
 
+    # Security hardening
+    # Refuse passwords found in known breaches (Have I Been Pwned range API, k-anonymity).
+    password_breach_check: bool = False
+    # none | clamav. With clamav every upload is scanned before it is stored; unreachable means refused.
+    malware_scanner: Literal["none", "clamav"] = "none"
+    clamav_host: str = "localhost"
+    clamav_port: int = 3310
+    clamav_timeout_seconds: float = 30.0
+
+    # Data lifecycle
+    # Days between an owner asking to delete an organization and its data being erased.
+    organization_deletion_grace_days: int = 30
+    # How long housekeeping keeps records that are no longer needed, in days.
+    retention_sessions_days: int = 30  # ended sessions and used or expired email links
+    retention_outbox_days: int = 90  # delivered or abandoned notification events
+    retention_read_notifications_days: int = 180
+    retention_closed_invitations_days: int = 90  # accepted, revoked or expired
+    retention_billing_events_days: int = 400  # raw payment-provider webhooks
+
     # Rate limiting
     rate_limit_enabled: bool = True
 
@@ -137,6 +156,18 @@ class Settings(BaseSettings):
     @property
     def broker_url(self) -> str | None:
         return self.celery_broker_url or self.redis_url
+
+    @property
+    def production_warnings(self) -> list[str]:
+        """Settings that are allowed in production but weaken it; logged at startup."""
+        if not self.is_production:
+            return []
+        warnings = []
+        if self.malware_scanner == "none":
+            warnings.append("MALWARE_SCANNER is none: uploads are not scanned for malware")
+        if not self.password_breach_check:
+            warnings.append("PASSWORD_BREACH_CHECK is off: leaked passwords are accepted")
+        return warnings
 
     @model_validator(mode="after")
     def _validate_production(self) -> "Settings":

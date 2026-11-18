@@ -35,6 +35,8 @@ Users are global. They reach tenant data only through `memberships`.
 | document_categories | json | list of category keys the organization uses |
 | onboarding_completed_at | timestamptz | nullable |
 | created_by_id | uuid | FK users, set null on delete |
+| deletion_requested_at, deletion_scheduled_for | timestamptz | nullable; set while deletion is scheduled (indexed) |
+| deletion_requested_by_id | uuid | FK users, set null on delete |
 | created_at, updated_at | timestamptz | |
 
 ### memberships (tenant-owned)
@@ -229,6 +231,20 @@ object storage, never in the database.
 - **invoices** (tenant-owned) — `provider`, `provider_invoice_id` (unique
   together), `number`, `status` (paid, failed, refunded), `amount` (smallest
   currency unit), `currency`, `description`, `hosted_url`, `issued_at`.
+
+## Row-Level Security (PostgreSQL)
+
+Every tenant-owned table (`TENANT_TABLES` in `app/core/rls.py`) has row security
+enabled and forced, with one policy, `tenant_isolation`:
+
+- visible and writable when `organization_id` equals `current_setting('app.tenant_id')`,
+  or when `app.rls_bypass = 'on'` (system jobs);
+- `memberships` are also visible to their own user (`app.user_id`).
+
+The settings are set per transaction by the application (`app/core/tenancy.py`).
+`billing_events` is not tenant-owned (some events have no organization) and is
+read only by system jobs. Migration `0006` creates the policies; the test suite
+creates the same ones after `create_all`.
 
 ## Conventions
 

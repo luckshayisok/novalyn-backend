@@ -64,6 +64,7 @@ scoped to `/api/v1/auth`; call `POST /auth/refresh` to get a new access token.
 | POST | `/auth/forgot-password` | none | Request a reset link. Always `202`, whether or not the account exists |
 | POST | `/auth/reset-password` | none | Set a new password with the emailed token. Ends all sessions |
 | POST | `/auth/change-password` | bearer | Change password. Ends the user's other sessions |
+| DELETE | `/auth/me` | bearer | Delete the account for good. Body `{ "password" }`. `204`. `401 wrong_password`; `409 sole_owner` with `details.organizations` when the caller is the only owner of a live organization |
 
 `POST /auth/register`
 
@@ -107,6 +108,13 @@ Other request bodies:
 | PATCH | `/organizations/{id}` | `organization:update` | Update profile |
 | POST | `/organizations/{id}/onboarding/complete` | `organization:update` | Mark setup finished |
 | POST | `/organizations/{id}/leave` | member | Leave. `409 last_owner` for the only owner |
+| POST | `/organizations/{id}/deletion` | `organization:delete` (owner) | Schedule deletion. Body `{ "confirm_name" }` (the exact name). Emails owners and admins |
+| DELETE | `/organizations/{id}/deletion` | `organization:delete` | Cancel a scheduled deletion |
+
+Organizations carry `deletion_scheduled_for` (null, or the time their data is erased). Scheduling
+returns `409 cancel_subscription_first` while a paid subscription would keep charging, and
+`422 confirmation_mismatch` for a wrong name. After that time the organization answers `404` and
+is left out of `GET /organizations`.
 
 Create body: `{ "name", "industry"?, "company_size"?, "timezone"? }`.
 Update body, all optional: `name`, `industry`, `company_size`, `timezone`,
@@ -277,6 +285,9 @@ Changing `category`, `document_number`, `issuing_authority`, `holder_name`,
 `issue_date` or `expiry_date` on a verified document sets it back to pending.
 
 ### Files
+
+Uploads can also be refused with `422 file_infected` (malware found) or
+`503 scanner_unavailable` (scanning is on and the scanner cannot be reached).
 
 `POST .../file-url` with `{ "disposition": "inline" | "attachment" }` returns
 `{ "url": "/api/v1/files/<token>", "expires_in": 120 }`. `GET` that URL with no

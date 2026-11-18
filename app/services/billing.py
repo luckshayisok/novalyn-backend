@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.errors import AppError, ConflictError, NotFoundError, ValidationFailedError
 from app.core.plans import PLANS, SELF_SERVE_PLANS, Plan
+from app.core.tenancy import allow_all_tenants
 from app.core.time import utcnow
 from app.integrations.payments import all_providers, configured_providers
 from app.integrations.payments.base import (
@@ -212,6 +213,8 @@ class BillingService:
         provider = all_providers().get(provider_name)
         if provider is None or not provider.is_configured():
             raise NotFoundError()
+        # A verified webhook is a system event: it names its organization in signed data.
+        allow_all_tenants(self.db)
         try:
             event = provider.parse_webhook(headers, body)
         except WebhookSignatureError as error:

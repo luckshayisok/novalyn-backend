@@ -1,11 +1,13 @@
 """Validation of uploaded files.
 
 An upload is accepted only when its extension is allowed AND its content
-matches that extension. The declared Content-Type header is ignored: it is
-whatever the client says it is.
+matches that extension AND, when a scanner is configured, it is free of
+malware. The declared Content-Type header is ignored: it is whatever the
+client says it is.
 """
 
 import hashlib
+import logging
 import re
 import tempfile
 import unicodedata
@@ -15,6 +17,8 @@ from pathlib import PurePosixPath, PureWindowsPath
 from typing import BinaryIO
 
 from app.core.errors import AppError
+
+logger = logging.getLogger(__name__)
 
 # extension -> (canonical content type, can be shown inline in a browser)
 ALLOWED_TYPES: dict[str, tuple[str, bool]] = {
@@ -92,6 +96,32 @@ def _sniff(head: bytes, file: BinaryIO) -> str | None:
     return None
 
 
+class ScannerUnavailableError(AppError):
+    status_code = 503
+    code = "scanner_unavailable"
+    message = (
+        "Files cannot be checked for viruses right now, so uploads are paused. Try again in a few minutes."
+    )
+
+
+def _scan_for_malware(file: BinaryIO, filename: str) -> None:
+    """Refuse infected files, and refuse anything the scanner could not check (fail closed)."""
+    from app.integrations.malware import ScannerUnavailableError as Unavailable
+    from app.integrations.malware import get_scanner
+
+    scanner = get_scanner()
+    try:
+        result = scanner.scan(file)
+    except Unavailable as error:
+        logger.error("Malware scan failed: %s", error)
+        raise ScannerUnavailableError() from error
+    if not result.clean:
+        logger.warning(
+            "Upload refused: malware found", extra={"signature": result.signature, "upload": filename}
+        )
+        raise InvalidFileError("This file contains malware and was not uploaded.", code="file_infected")
+
+
 def validate_upload(source: BinaryIO, filename: str | None, *, max_bytes: int) -> ValidatedUpload:
     """Read an upload, enforce the size limit and check that content matches the extension."""
     name = clean_filename(filename)
@@ -122,6 +152,7 @@ def validate_upload(source: BinaryIO, filename: str | None, *, max_bytes: int) -
                 code="file_content_mismatch",
             )
         spooled.seek(0)
+        _scan_for_malware(spooled, name)
         return ValidatedUpload(
             file=spooled,
             filename=name,

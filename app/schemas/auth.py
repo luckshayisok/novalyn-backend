@@ -73,3 +73,7 @@ class UpdateProfileRequest(Schema):
         if not value.strip():
             raise ValueError("Enter your name")
         return value.strip()
+
+
+class DeleteAccountRequest(Schema):
+    password: str = Field(min_length=1, max_length=200)

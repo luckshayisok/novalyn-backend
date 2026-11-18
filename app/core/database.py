@@ -8,6 +8,8 @@ from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.core.config import get_settings
+from app.core.rls import register as register_rls
+from app.core.tenancy import allow_all_tenants
 
 NAMING_CONVENTION = {
     "ix": "ix_%(column_0_label)s",
@@ -50,6 +52,7 @@ def build_engine(database_url: str) -> Engine:
 
 engine = build_engine(get_settings().database_url)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False, class_=Session)
+register_rls(Base.metadata)
 
 
 def get_db() -> Iterator[Session]:
@@ -59,3 +62,13 @@ def get_db() -> Iterator[Session]:
         yield db
     finally:
         db.close()
+
+
+def system_session() -> Session:
+    """A session for trusted system jobs (scheduler, workers, CLI) that work across organizations.
+
+    Row-Level Security lets it see every organization. Never use it to serve a person's request.
+    """
+    db = SessionLocal()
+    allow_all_tenants(db)
+    return db

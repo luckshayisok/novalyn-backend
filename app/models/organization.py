@@ -40,6 +40,12 @@ class Organization(UUIDPrimaryKey, Timestamps, Base):
         nullable=False,
     )
     created_by_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("users.id", ondelete="SET NULL"))
+    # Deletion is scheduled with a grace period, during which the owner can cancel it.
+    deletion_requested_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    deletion_scheduled_for: Mapped[datetime | None] = mapped_column(UTCDateTime, index=True)
+    deletion_requested_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="SET NULL")
+    )
 
 
 class Membership(UUIDPrimaryKey, Timestamps, TenantScoped, Base):

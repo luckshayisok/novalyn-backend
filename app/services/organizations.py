@@ -10,6 +10,7 @@ from app.core.config import get_settings
 from app.core.errors import ConflictError
 from app.core.permissions import Role
 from app.core.plans import Feature
+from app.core.tenancy import set_tenant
 from app.core.time import utcnow
 from app.models import Membership, Organization, Subscription, SubscriptionStatus, User
 from app.repositories.organizations import MembershipRepository, OrganizationRepository
@@ -62,6 +63,8 @@ class OrganizationService:
         )
         self.organizations.add(organization)
         self.db.flush()
+        # Everything below belongs to the new organization.
+        set_tenant(self.db, organization.id)
 
         membership = Membership(organization_id=organization.id, user_id=user.id, role=Role.OWNER.value)
         self.db.add(

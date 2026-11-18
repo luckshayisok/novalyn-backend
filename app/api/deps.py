@@ -11,7 +11,7 @@ from app.core.errors import AuthenticationError, NotFoundError, PermissionDenied
 from app.core.permissions import Permission
 from app.core.rate_limit import client_ip
 from app.core.security import decode_access_token
-from app.core.tenancy import set_tenant
+from app.core.tenancy import set_rls_user, set_tenant
 from app.core.time import utcnow
 from app.models import User
 from app.repositories.organizations import MembershipRepository, OrganizationRepository
@@ -46,11 +46,18 @@ def get_current_user(
         raise AuthenticationError("Your session has ended. Sign in again.", code="session_revoked")
 
     request.state.session_family_id = claims.session_family_id
+    set_rls_user(db, user.id)
     return user
 
 
 def get_session_family_id(request: Request, _user: User = Depends(get_current_user)) -> uuid.UUID:
     return request.state.session_family_id
+
+
+def _deleted(organization) -> bool:
+    """Past its deletion date: gone for everyone, even before the nightly job erases it."""
+    scheduled = organization.deletion_scheduled_for
+    return scheduled is not None and scheduled <= utcnow()
 
 
 def get_org_context(
@@ -65,7 +72,7 @@ def get_org_context(
     """
     membership = MembershipRepository(db, organization_id).get_by_user(user.id)
     organization = OrganizationRepository(db).get(organization_id) if membership else None
-    if membership is None or organization is None:
+    if membership is None or organization is None or _deleted(organization):
         raise NotFoundError("This organization was not found.")
 
     set_tenant(db, organization.id)

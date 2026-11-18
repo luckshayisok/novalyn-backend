@@ -27,6 +27,7 @@ from app.core.security import (
 )
 from app.core.time import utcnow
 from app.integrations.email import templates
+from app.integrations.pwned import times_leaked
 from app.models import RefreshToken, User, UserToken, UserTokenPurpose
 from app.repositories.users import RefreshTokenRepository, UserRepository, UserTokenRepository
 from app.services.context import RequestMeta
@@ -68,6 +69,8 @@ def validate_password(password: str, *, email: str) -> None:
         problem = "The password must not be your email address."
     elif len(set(password)) < 4:
         problem = "The password is too simple."
+    elif settings.password_breach_check and times_leaked(password):
+        problem = "This password has appeared in a data breach, so attackers try it. Choose a different one."
     if problem:
         raise ValidationFailedError(
             problem, code="weak_password", details=[{"field": "password", "message": problem}]

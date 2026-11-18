@@ -3,6 +3,7 @@
 import logging
 import time
 import uuid
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,7 +23,43 @@ SECURITY_HEADERS = {
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "no-referrer",
     "Cache-Control": "no-store",
+    # API responses are data: nothing in them may run, load or be framed.
+    # File downloads set their own, slightly wider policy so the preview can frame them.
+    "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+    "Cross-Origin-Resource-Policy": "same-site",
 }
+HSTS = "max-age=63072000; includeSubDomains"
+# The interactive API docs (development only) load their own scripts and styles.
+DOCS_PATHS = ("/api/docs", "/api/openapi.json")
+
+
+def check_database_role() -> None:
+    """Row-Level Security does not apply to superusers or BYPASSRLS roles.
+
+    Refuse to serve as one in production; warn elsewhere.
+    """
+    from app.core.rls import role_bypasses_rls
+
+    settings = get_settings()
+    with SessionLocal() as db:
+        bypasses = role_bypasses_rls(db.connection())
+    if not bypasses:
+        return
+    message = (
+        "The database role skips Row-Level Security (superuser or BYPASSRLS). "
+        "Connect as an ordinary role that owns the tables; see DEPLOYMENT.md."
+    )
+    if settings.is_production:
+        raise RuntimeError(message)
+    logging.getLogger(__name__).warning(message)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    for warning in get_settings().production_warnings:
+        logging.getLogger(__name__).warning("Production setting: %s", warning)
+    check_database_role()
+    yield
 
 
 def create_app() -> FastAPI:
@@ -31,6 +68,7 @@ def create_app() -> FastAPI:
 
     docs_enabled = not settings.is_production
     app = FastAPI(
+        lifespan=lifespan,
         title="NOVALYN API",
         description="Document intelligence, certificate management and renewal tracking.",
         version="0.1.0",
@@ -79,8 +117,11 @@ def create_app() -> FastAPI:
                 )
             duration_ms = round((time.perf_counter() - started) * 1000, 1)
             response.headers["X-Request-ID"] = request_id
-            for header, value in SECURITY_HEADERS.items():
-                response.headers.setdefault(header, value)
+            if not request.url.path.startswith(DOCS_PATHS):
+                for header, value in SECURITY_HEADERS.items():
+                    response.headers.setdefault(header, value)
+            if settings.is_production:
+                response.headers.setdefault("Strict-Transport-Security", HSTS)
             logger.info(
                 "%s %s -> %s (%sms)",
                 request.method,

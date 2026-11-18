@@ -4,14 +4,14 @@ import uuid
 
 import pytest
 
-from app.core.database import SessionLocal
+from app.core.database import system_session
 from app.models import Subscription, SubscriptionStatus
 from app.services.plans import get_subscription
 from tests.helpers import add_member, error_code, in_days
 
 
 def set_plan(org_id: str, plan: str, status: str = SubscriptionStatus.ACTIVE, **fields) -> None:
-    with SessionLocal() as db:
+    with system_session() as db:
         subscription = get_subscription(db, uuid.UUID(org_id))
         subscription.plan = plan
         subscription.status = status

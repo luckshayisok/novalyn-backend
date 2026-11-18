@@ -2,7 +2,7 @@
 
 import uuid
 
-from app.core.database import SessionLocal
+from app.core.database import system_session
 from app.workers.celery_app import celery_app
 
 
@@ -11,5 +11,5 @@ def extract_document_task(extraction_id: str) -> None:
     """Read one uploaded file and store suggestions. Failures are recorded on the extraction, not raised."""
     from app.services.extraction import ExtractionService
 
-    with SessionLocal() as db:
+    with system_session() as db:
         ExtractionService(db).run(uuid.UUID(extraction_id))

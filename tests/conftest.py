@@ -42,7 +42,7 @@ os.environ.update(
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
-from app.core.database import Base, SessionLocal, engine  # noqa: E402
+from app.core.database import Base, engine, system_session  # noqa: E402
 from app.core.rate_limit import get_rate_limiter  # noqa: E402
 from app.integrations.email.senders import get_email_sender  # noqa: E402
 from app.main import app  # noqa: E402
@@ -61,7 +61,8 @@ def clean_state():
 
 @pytest.fixture
 def db():
-    session = SessionLocal()
+    # Tests inspect every organization directly, like a system job.
+    session = system_session()
     try:
         yield session
     finally:

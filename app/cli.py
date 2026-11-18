@@ -3,6 +3,8 @@
 seed            Create a demo organization with one user per role. Development only.
 scan-expiries   Emit the expiry reminders that are due now (Celery Beat runs this hourly).
 dispatch        Deliver pending notifications now (Celery Beat runs this every minute).
+maintenance     Erase organizations past their deletion date and remove expired records
+                (Celery Beat runs this nightly).
 set-plan <organization-slug> <free|starter|growth|business>
                 Put an organization on a plan by hand, for example a Business plan agreed
                 with sales. Payment is handled outside NOVALYN; the change is audited.
@@ -14,7 +16,7 @@ import sys
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.database import SessionLocal
+from app.core.database import system_session
 from app.core.permissions import Role
 from app.core.security import hash_password
 from app.core.time import utcnow
@@ -117,7 +119,7 @@ def main(argv: list[str]) -> int:
             print("Usage: python -m app.cli set-plan <organization-slug> <plan>", file=sys.stderr)
             return 2
         try:
-            with SessionLocal() as db:
+            with system_session() as db:
                 print(set_plan(db, command[1], command[2]))
         except PlanChangeError as error:
             print(str(error), file=sys.stderr)
@@ -126,13 +128,23 @@ def main(argv: list[str]) -> int:
     if command == ["scan-expiries"]:
         from app.services.reminders import ReminderScanner
 
-        with SessionLocal() as db:
+        with system_session() as db:
             print(f"Reminders queued: {ReminderScanner(db).run()}")
+        return 0
+    if command == ["maintenance"]:
+        from app.services.data_lifecycle import OrganizationPurger, RetentionService
+
+        with system_session() as db:
+            purged = OrganizationPurger(db).run()
+            removed = RetentionService(db).run()
+        print(f"Organizations erased: {len(purged.organizations)} ({purged.files_deleted} files)")
+        for name, count in removed.items():
+            print(f"  {name.replace('_', ' ')} removed: {count}")
         return 0
     if command == ["dispatch"]:
         from app.services.notifications import Dispatcher
 
-        with SessionLocal() as db:
+        with system_session() as db:
             print(f"Events delivered: {Dispatcher(db).run()}")
         return 0
     if command != ["seed"]:
@@ -143,7 +155,7 @@ def main(argv: list[str]) -> int:
         print("Set SEED_PASSWORD to the password the demo users should get.", file=sys.stderr)
         return 1
     try:
-        with SessionLocal() as db:
+        with system_session() as db:
             created = seed(db, password)
     except SeedError as error:
         print(str(error), file=sys.stderr)

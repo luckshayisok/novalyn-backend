@@ -82,7 +82,24 @@ all with the password you supplied. Refused in production.
 
 The suite uses a temporary SQLite file. To run it against PostgreSQL, point
 `TEST_DATABASE_URL` at an empty database; tables are dropped and recreated for
-every test, so never point it at a database you care about.
+every test, so never point it at a database you care about. Connect as an
+ordinary role (not a superuser), or the Row-Level Security tests fail on
+purpose: superusers skip row security.
+
+```sql
+CREATE ROLE novalyn_app LOGIN PASSWORD 'novalyn_app' NOSUPERUSER NOBYPASSRLS;
+CREATE DATABASE novalyn_test OWNER novalyn_app;
+```
+
+```bash
+TEST_DATABASE_URL=postgresql://novalyn_app:novalyn_app@localhost:5432/novalyn_test .venv/Scripts/python -m pytest
+```
+
+Code that serves a person's request runs inside their organization. Jobs that
+work across organizations (scheduler, workers, CLI) use `system_session()`
+from `app/core/database.py`. A new table with `organization_id` needs a
+policy: add it to `TENANT_TABLES` in `app/core/rls.py` and write a migration
+that calls `enable_row_level_security` (a test checks this).
 
 ### Migrations
 
@@ -272,3 +289,24 @@ a public URL for webhooks (a tunnel such as `cloudflared` or `ngrok`).
 Code: `app/integrations/payments/` (Stripe and Razorpay adapters, signature
 checks), `app/services/billing.py` (checkout, webhooks, invoices),
 `app/services/calendar.py`, `app/services/reports.py`.
+
+## End-to-end test
+
+The frontend repository has a browser test of the whole customer journey
+(`e2e/journey.spec.ts`). It starts its own API on port 8100 with a fresh
+database and serves the production build with the production
+Content-Security-Policy on port 4174:
+
+```bash
+cd ../novalyn-frontend
+npx playwright install chromium   # once; or use an installed browser: E2E_BROWSER=msedge
+npm run e2e
+```
+
+`BACKEND_DIR` points at this repository if it is not `../novalyn-backend` or `../backend`.
+
+## Security settings in development
+
+`PASSWORD_BREACH_CHECK` and `MALWARE_SCANNER` are off by default. To try the
+scanner locally, run ClamAV (`docker compose --profile scan up clamav`) and set
+`MALWARE_SCANNER=clamav`; the EICAR test file must then be refused.

@@ -19,6 +19,7 @@ from app.core.rate_limit import enforce, rate_limit
 from app.models import User
 from app.schemas.common import Option
 from app.schemas.organizations import (
+    DeletionRequest,
     InvitationCreate,
     InvitationOut,
     InvitationPreviewOut,
@@ -224,3 +225,29 @@ def get_options() -> OptionsOut:
             for role in Role
         ],
     )
+
+
+# ------------------------------------------------------------------ deletion
+
+
+@router.post("/{organization_id}/deletion", response_model=OrganizationOut)
+def schedule_deletion(
+    payload: DeletionRequest,
+    ctx: OrgContext = Depends(require_permission(Permission.ORG_DELETE)),
+    db: Session = Depends(get_db),
+) -> OrganizationOut:
+    """Erase the organization after the grace period. Owners and admins are emailed; an owner can cancel."""
+    from app.services.data_lifecycle import OrganizationDeletionService
+
+    organization = OrganizationDeletionService(db).schedule(ctx, confirm_name=payload.confirm_name)
+    return OrganizationOut.build(organization, ctx.membership)
+
+
+@router.delete("/{organization_id}/deletion", response_model=OrganizationOut)
+def cancel_deletion(
+    ctx: OrgContext = Depends(require_permission(Permission.ORG_DELETE)), db: Session = Depends(get_db)
+) -> OrganizationOut:
+    from app.services.data_lifecycle import OrganizationDeletionService
+
+    organization = OrganizationDeletionService(db).cancel(ctx)
+    return OrganizationOut.build(organization, ctx.membership)

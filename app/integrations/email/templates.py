@@ -143,3 +143,21 @@ def notification_email(
             footnote,
         ),
     )
+
+
+def organization_deletion_email(
+    *, to: str, organization_name: str, requested_by: str, delete_on: str, url: str
+) -> EmailMessage:
+    heading = f"{organization_name} is scheduled for deletion"
+    line = (
+        f"{requested_by} asked to delete {organization_name} on {BRAND}. On {delete_on}, every document, "
+        "file, record and the activity history of the organization will be erased permanently."
+    )
+    action = "An owner can cancel the deletion in the organization's settings until then."
+    footnote = "You receive this because you are an owner or admin of the organization."
+    return EmailMessage(
+        to=to,
+        subject=f"{organization_name} will be deleted on {delete_on}",
+        text=_text("Hello,", [line, action], "Open settings", url, footnote),
+        html=_layout(heading, [escape(line), escape(action)], "Open settings", url, footnote),
+    )
