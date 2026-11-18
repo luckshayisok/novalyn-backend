@@ -6,10 +6,12 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import ConflictError, NotFoundError, PermissionDeniedError
 from app.core.permissions import Role, assignable_roles, can_manage_member
+from app.core.plans import Feature
 from app.models import Membership
 from app.repositories.organizations import MembershipRepository
 from app.services.audit import AuditAction, AuditService
 from app.services.context import OrgContext
+from app.services.plans import Entitlements
 
 _LAST_OWNER_MESSAGE = "An organization needs at least one owner. Make someone else an owner first."
 
@@ -33,6 +35,8 @@ class MemberService:
         current_role = Role(target.role)
         if not can_manage_member(ctx.role, current_role) or new_role not in assignable_roles(ctx.role):
             raise PermissionDeniedError("Your role does not allow this role change.")
+        if new_role in (Role.COMPLIANCE_MANAGER, Role.VIEWER) and new_role is not current_role:
+            Entitlements(self.db, ctx.organization_id).require(Feature.ADVANCED_PERMISSIONS)
         if current_role is Role.OWNER and new_role is not Role.OWNER and memberships.count_owners() <= 1:
             raise ConflictError(_LAST_OWNER_MESSAGE, code="last_owner")
 

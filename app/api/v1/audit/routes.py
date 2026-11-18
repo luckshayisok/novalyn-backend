@@ -1,5 +1,8 @@
 """Audit log endpoints. Read only."""
 
+import uuid
+from datetime import date
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
@@ -24,10 +27,23 @@ def list_audit_logs(
         pattern=r"^[a-z_.]+$",
         description="Filter by action or action prefix, for example `member.`",
     ),
+    actor: uuid.UUID | None = Query(default=None, description="Only entries by this user"),
+    resource_type: str | None = Query(default=None, max_length=50, pattern=r"^[a-z_]+$"),
+    start: date | None = Query(default=None, description="First day, in the organization's timezone"),
+    end: date | None = Query(default=None, description="Last day, included"),
     ctx: OrgContext = Depends(require_permission(Permission.AUDIT_READ)),
     db: Session = Depends(get_db),
 ) -> Page[AuditLogOut]:
-    items, total = AuditService(db).list(ctx, page=page, page_size=page_size, action_prefix=action)
+    items, total = AuditService(db).list(
+        ctx,
+        page=page,
+        page_size=page_size,
+        action_prefix=action,
+        actor_user_id=actor,
+        resource_type=resource_type,
+        start=start,
+        end=end,
+    )
     return Page[AuditLogOut](
         items=[AuditLogOut.build(item) for item in items],
         total=total,

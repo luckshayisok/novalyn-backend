@@ -243,3 +243,32 @@ With Redis available:
 
 Code: `app/services/reminders.py`, `app/services/notifications.py`
 (outbox, recipients, wording, dispatcher), `app/services/renewals.py`.
+
+## Plans and payments
+
+New organizations start on `DEFAULT_PLAN` (`free` by default). Free allows 10
+documents and one person, so for local work put your organization on a larger
+plan:
+
+```bash
+.venv/Scripts/python -m app.cli set-plan <organization-slug> growth
+```
+
+The change is recorded in the audit log. Plans, limits and features are
+defined in `app/core/plans.py`; the checks are in `app/services/plans.py`. The
+test suite runs on `business` and the billing tests choose plans themselves.
+
+Online payment is off unless provider keys are set (see `.env.example`). To try
+Stripe locally in test mode, set the test keys and price IDs, then forward
+webhooks with the Stripe CLI:
+
+```bash
+stripe listen --forward-to localhost:8000/api/v1/billing/webhooks/stripe
+```
+
+and put the signing secret it prints in `STRIPE_WEBHOOK_SECRET`. Razorpay needs
+a public URL for webhooks (a tunnel such as `cloudflared` or `ngrok`).
+
+Code: `app/integrations/payments/` (Stripe and Razorpay adapters, signature
+checks), `app/services/billing.py` (checkout, webhooks, invoices),
+`app/services/calendar.py`, `app/services/reports.py`.

@@ -4,13 +4,17 @@
 or rolls back together with the change it describes.
 """
 
+from __future__ import annotations
+
 import uuid
+from datetime import date, datetime, time, timedelta
 from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.core.errors import ValidationFailedError
 from app.models import AuditLog
-from app.repositories.audit import AuditLogRepository
+from app.repositories.audit import AuditFilters, AuditLogRepository
 from app.services.context import OrgContext
 
 _FORBIDDEN_KEY_FRAGMENTS = ("password", "token", "secret")
@@ -97,8 +101,30 @@ class AuditService:
         )
 
     def list(
-        self, ctx: OrgContext, *, page: int, page_size: int, action_prefix: str | None = None
+        self,
+        ctx: OrgContext,
+        *,
+        page: int,
+        page_size: int,
+        action_prefix: str | None = None,
+        actor_user_id: uuid.UUID | None = None,
+        resource_type: str | None = None,
+        start: date | None = None,
+        end: date | None = None,
     ) -> tuple[list[AuditLog], int]:
+        """Dates are whole days in the organization's timezone, both ends included."""
+        from app.services.expiry import organization_zone
+
+        if start and end and end < start:
+            raise ValidationFailedError("The end date is before the start date.", code="invalid_range")
+        zone = organization_zone(ctx.organization.timezone)
+        filters = AuditFilters(
+            action_prefix=action_prefix,
+            actor_user_id=actor_user_id,
+            resource_type=resource_type,
+            since=datetime.combine(start, time.min, zone) if start else None,
+            until=datetime.combine(end + timedelta(days=1), time.min, zone) if end else None,
+        )
         return AuditLogRepository(self.db, ctx.organization_id).list(
-            page=page, page_size=page_size, action_prefix=action_prefix
+            page=page, page_size=page_size, filters=filters
         )

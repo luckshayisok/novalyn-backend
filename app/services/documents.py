@@ -19,6 +19,7 @@ from app.core.constants import DOCUMENT_CATEGORIES
 from app.core.errors import ConflictError, NotFoundError
 from app.core.files import INLINE_CONTENT_TYPES, ValidatedUpload
 from app.core.permissions import Permission
+from app.core.plans import Feature
 from app.core.security import create_file_token, decode_file_token
 from app.core.storage import StoredFileNotFoundError, document_key, get_storage
 from app.core.tenancy import set_tenant
@@ -35,6 +36,7 @@ from app.services.context import OrgContext
 from app.services.entities import field_error, resolve_owner
 from app.services.expiry import organization_today
 from app.services.notifications import EventType, document_payload, emit, kick_dispatcher
+from app.services.plans import Entitlements
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +84,7 @@ class DocumentService:
 
     def upload(self, ctx: OrgContext, upload: ValidatedUpload, data: dict[str, Any]) -> Document:
         """Create a document from an uploaded file. The file becomes version 1."""
+        Entitlements(self.db, ctx.organization_id).check_documents(adding=1)
         name = (data.get("name") or "").strip() or PurePosixPath(upload.filename).stem
         document = Document(
             organization_id=ctx.organization_id,
@@ -253,6 +256,8 @@ class DocumentService:
         document = self.get(ctx, document_id)
         if (document.archived_at is not None) == archived:
             return document
+        if not archived:
+            Entitlements(self.db, ctx.organization_id).check_documents(adding=1)
         document.archived_at = utcnow() if archived else None
         self.audit.record_for(
             ctx,
@@ -276,6 +281,10 @@ class DocumentService:
         )
         if version is None:
             raise NotFoundError("This file was not found.")
+        current = document.current_version
+        if version.state != "pending" and (current is None or version.id != current.id):
+            # Earlier files, and files of rejected renewals, are the document's history.
+            Entitlements(self.db, ctx.organization_id).require(Feature.DOCUMENT_HISTORY)
 
         inline = inline and version.content_type in INLINE_CONTENT_TYPES
         token, ttl = create_file_token(ctx.organization_id, version.id, inline=inline)

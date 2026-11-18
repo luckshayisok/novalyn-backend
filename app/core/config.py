@@ -84,6 +84,24 @@ class Settings(BaseSettings):
     extraction_max_pages: int = 10
     extraction_max_chars: int = 30_000
 
+    # Plans and billing
+    default_plan: Literal["free", "starter", "growth", "business"] = "free"
+    # Stripe (USD) and Razorpay (INR). Leave unset to switch online payment off.
+    stripe_secret_key: str | None = None
+    stripe_webhook_secret: str | None = None
+    stripe_price_starter_month: str | None = None
+    stripe_price_starter_year: str | None = None
+    stripe_price_growth_month: str | None = None
+    stripe_price_growth_year: str | None = None
+    razorpay_key_id: str | None = None
+    razorpay_key_secret: str | None = None
+    razorpay_webhook_secret: str | None = None
+    razorpay_plan_starter_month: str | None = None
+    razorpay_plan_starter_year: str | None = None
+    razorpay_plan_growth_month: str | None = None
+    razorpay_plan_growth_year: str | None = None
+    sales_email: str = "sales@novalyn.example"
+
     # Rate limiting
     rate_limit_enabled: bool = True
 

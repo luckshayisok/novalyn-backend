@@ -214,12 +214,21 @@ object storage, never in the database.
 - **notifications** — in-app: `organization_id`, `user_id`, `type`, `title`,
   `body`, `resource_type`, `resource_id`, `read_at`.
 
-### Phase 5 — billing
-- **subscriptions** — `organization_id` (unique), `plan`, `status`,
-  `provider`, provider customer and subscription IDs, `current_period_end`,
-  `custom_limits` json.
-- **billing_events** — provider webhook events, unique on provider event ID.
-- **invoices** — billing history.
+### Phase 5 — billing (implemented in migration `0005`)
+- **subscriptions** (tenant-owned) — `organization_id` (unique), `plan`
+  (check: free, starter, growth, business), `status` (check: active, trialing,
+  past_due, canceled, incomplete), `billing_interval`, `provider` (stripe,
+  razorpay, manual), `provider_customer_id`, `provider_subscription_id`
+  (indexed), `pending_plan` (chosen at checkout, applied on confirmed
+  payment), `current_period_end`, `cancel_at_period_end`, `custom_limits` json,
+  timestamps. Organizations without a row get one on first use with
+  `DEFAULT_PLAN`.
+- **billing_events** — every verified provider webhook: `provider`,
+  `provider_event_id` (unique together), `event_type`,
+  `organization_id` (nullable), `payload` json, `processed_at`, `error`.
+- **invoices** (tenant-owned) — `provider`, `provider_invoice_id` (unique
+  together), `number`, `status` (paid, failed, refunded), `amount` (smallest
+  currency unit), `currency`, `description`, `hosted_url`, `issued_at`.
 
 ## Conventions
 

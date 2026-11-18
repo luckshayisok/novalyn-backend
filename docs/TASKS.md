@@ -189,10 +189,55 @@ verified, `[ ]` not started.
 - [ ] Webhooks for notification events
 
 ## Phase 5 — Business features
-- [ ] Compliance calendar
-- [ ] Reports with CSV and PDF export
-- [ ] Audit log filters by date and user, export
-- [ ] Plans, entitlements, usage limits; Razorpay and Stripe adapters
+
+### Backend
+- [x] Plans Free, Starter, Growth and Business in one place (`app/core/plans.py`): limits, features, display prices
+- [x] Entitlements checked on the server: documents (upload, restore), people (invite, accept, counting open
+      invitations), locations, entities, Compliance Manager and Viewer roles, custom reminder days, earlier file
+      versions, reports and exports. Refusals are HTTP 402 `plan_limit_reached` or `feature_not_in_plan`
+- [x] Lapsed or incomplete subscriptions fall back to Free limits; past-due keeps the plan while the provider retries
+- [x] Per-organization custom limits for Business deals; `set-plan` command for plans arranged with sales (audited)
+- [x] Compliance calendar API: expirations, renewal deadlines and approvals, filtered by type, document type,
+      person and location, up to 62 days per request
+- [x] Eight reports (expiring, expired, by type, pending verification, by supplier, by employee, renewal performance,
+      activity), JSON preview up to 500 rows, CSV (formula-safe, UTF-8 with BOM) and PDF export up to 5,000 rows;
+      exports are audited
+- [x] Audit log filters: area, person, resource type, date range in the organization's time zone
+- [x] Stripe and Razorpay adapters: hosted checkout, cancel at period end, signed webhooks (Stripe timestamped
+      HMAC with 5-minute tolerance; Razorpay HMAC of the body), constant-time comparison
+- [x] Webhooks stored once per provider event (idempotent, safe under concurrent resends); plan changes only on a
+      confirmed payment; invoices recorded as billing history; failed payments mark the subscription past due
+- [x] No payment keys configured: checkout returns 409 `payments_not_configured` with the sales address
+- [x] Migration `0005`; 361 backend tests pass
+
+### Frontend
+- [x] Compliance calendar: month grid and list, type toggles, document type, person and location filters, day
+      details, links to the document or renewal; filters and month kept in the URL
+- [x] Reports: catalog with locked reports marked, period pickers, summary figures, preview table, CSV and PDF
+      download through an authenticated request
+- [x] Plan and billing: current plan and status, usage meters, plan cards (monthly or yearly, USD or INR), checkout
+      redirect, return notices, cancellation, billing history; "payment not set up" notice instead of dead buttons
+- [x] Audit log filters by area, person and dates; descriptions for report and billing entries
+- [x] Plan refusals from the server shown with a link to the plans
+
+### Checked by hand in a browser
+- [x] Calendar month and list views with real data; day details
+- [x] Expired documents report preview; PDF export downloads (200) and is recorded in the audit log
+- [x] Billing page on Growth with no payment provider configured
+- [x] Locked report on Starter shows the plan notice
+- [x] Audit log filtered to billing and to reports
+
+### Not verified
+- [~] No real Stripe or Razorpay account was used. Checkout requests and webhook payloads are tested against the
+      providers' documented formats with signed test events; run a test-mode purchase before taking payments
+- [~] Plan changes (upgrade between paid plans, proration) go through sales; there is no self-serve plan switch yet
+- [~] The PDF layout was checked through its text, not rendered visually here
+
+### Left over
+- [ ] Self-serve switching between paid plans (Stripe subscription update, Razorpay plan change)
+- [ ] Customer billing portal link (update card, download invoices) beyond the hosted invoice links
+- [ ] Taxes (GST, VAT) and billing addresses on invoices: configure in the provider; not modelled here
+- [ ] Scheduled report emails; audit log export (the activity report covers the CSV/PDF case)
 
 ## Phase 6 — Production readiness
 - [ ] PostgreSQL Row-Level Security

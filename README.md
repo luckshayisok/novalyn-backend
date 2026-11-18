@@ -9,7 +9,8 @@ nobody misses a renewal.
 
 ## Status
 
-Phases 1 to 4 of 6 (Foundation, Core product, Document intelligence, Lifecycle automation) are complete. What works today:
+Phases 1 to 5 of 6 (Foundation, Core product, Document intelligence, Lifecycle automation, Business features)
+are complete. What works today:
 
 - Accounts: registration, sign in, email confirmation, password reset,
   rotating sessions, sign out everywhere
@@ -28,9 +29,12 @@ Phases 1 to 4 of 6 (Foundation, Core product, Document intelligence, Lifecycle a
   details offered as suggestions, with confidence and date checks, applied only after a person reviews them
 - Reminders before expiry (configurable), expired and overdue alerts, in-app notifications and email
 - Renewal workflow with assignment, deadlines, the renewed file kept aside until approval, and full history
+- Compliance calendar of expirations, renewal deadlines and approvals
+- Eight reports with CSV and PDF export; audit log filters by area, person and date
+- Plans (Free, Starter, Growth, Business) with limits enforced on the server, Stripe and Razorpay checkout through
+  signed webhooks, and billing history. Online payment stays off until provider keys are configured
 
-The calendar, reports and billing are
-the next phases. [`TASKS.md`](docs/TASKS.md) lists exactly what is done, what is
+Production hardening is the last phase. [`TASKS.md`](docs/TASKS.md) lists exactly what is done, what is
 not, and what has not been verified. [`IMPLEMENTATION_ROADMAP.md`](docs/IMPLEMENTATION_ROADMAP.md) has the plan.
 
 ## Repositories

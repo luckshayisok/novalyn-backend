@@ -6,13 +6,16 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.errors import ConflictError
 from app.core.permissions import Role
+from app.core.plans import Feature
 from app.core.time import utcnow
-from app.models import Membership, Organization, User
+from app.models import Membership, Organization, Subscription, SubscriptionStatus, User
 from app.repositories.organizations import MembershipRepository, OrganizationRepository
 from app.services.audit import AuditAction, AuditService
 from app.services.context import OrgContext, RequestMeta
+from app.services.plans import Entitlements
 
 MAX_ORGANIZATIONS_PER_USER = 25
 _SLUG_INVALID = re.compile(r"[^a-z0-9]+")
@@ -61,6 +64,14 @@ class OrganizationService:
         self.db.flush()
 
         membership = Membership(organization_id=organization.id, user_id=user.id, role=Role.OWNER.value)
+        self.db.add(
+            Subscription(
+                organization_id=organization.id,
+                plan=get_settings().default_plan,
+                status=SubscriptionStatus.ACTIVE,
+                custom_limits={},
+            )
+        )
         MembershipRepository(self.db, organization.id).add(membership)
         self.audit.record(
             organization_id=organization.id,
@@ -76,6 +87,9 @@ class OrganizationService:
 
     def update(self, ctx: OrgContext, changes: dict[str, Any]) -> Organization:
         organization = ctx.organization
+        offsets = changes.get("reminder_offsets")
+        if offsets is not None and sorted(offsets) != sorted(organization.reminder_offsets or []):
+            Entitlements(self.db, ctx.organization_id).require(Feature.CUSTOM_REMINDERS)
         changed: dict[str, dict[str, Any]] = {}
         for field, value in changes.items():
             if isinstance(value, str):

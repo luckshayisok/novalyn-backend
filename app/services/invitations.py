@@ -11,6 +11,7 @@ from app.core.config import get_settings
 from app.core.constants import ROLE_LABELS
 from app.core.errors import AppError, ConflictError, NotFoundError, PermissionDeniedError
 from app.core.permissions import Role, invitable_roles
+from app.core.plans import Feature
 from app.core.rate_limit import enforce
 from app.core.security import generate_token, hash_token
 from app.core.tenancy import set_tenant
@@ -26,9 +27,12 @@ from app.repositories.organizations import (
 from app.services.audit import AuditAction, AuditService
 from app.services.auth import normalize_email
 from app.services.context import OrgContext, RequestMeta
+from app.services.plans import Entitlements
 from app.workers.notification_tasks import enqueue_email
 
 INVITES_PER_ORG_PER_HOUR = 50
+# Roles beyond Owner, Admin and Member come with the advanced permissions feature.
+ADVANCED_ROLES = (Role.COMPLIANCE_MANAGER, Role.VIEWER)
 
 
 class InvitationUnavailableError(AppError):
@@ -65,6 +69,9 @@ class InvitationService:
             )
         if role not in invitable_roles(ctx.role):
             raise PermissionDeniedError("Your role does not allow inviting someone with this role.")
+        entitlements = Entitlements(self.db, ctx.organization_id)
+        if role in ADVANCED_ROLES:
+            entitlements.require(Feature.ADVANCED_PERMISSIONS)
 
         email = normalize_email(email)
         if MembershipRepository(self.db, ctx.organization_id).get_by_email(email) is not None:
@@ -83,6 +90,7 @@ class InvitationService:
             self.db.flush()
 
         enforce(f"invite:{ctx.organization_id}", INVITES_PER_ORG_PER_HOUR, 3600)
+        entitlements.check_members(adding=1)
 
         raw_token = generate_token()
         invitation = Invitation(
@@ -184,6 +192,8 @@ class InvitationService:
         memberships = MembershipRepository(self.db, organization.id)
         if memberships.get_by_user(user.id) is not None:
             raise ConflictError("You are already a member of this organization.", code="already_member")
+        # The open invitation was counted when it was sent; check again in case the plan changed since.
+        Entitlements(self.db, organization.id).check_members(adding=1, count_pending=False)
 
         now = utcnow()
         membership = Membership(organization_id=organization.id, user_id=user.id, role=invitation.role)

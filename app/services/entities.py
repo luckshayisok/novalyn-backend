@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.constants import ENTITY_TYPES
 from app.core.errors import NotFoundError, ValidationFailedError
+from app.core.plans import Feature
 from app.core.time import utcnow
 from app.models import Entity, Membership
 from app.repositories.documents import EntityDocumentCounts, EntityRepository
@@ -18,6 +19,7 @@ from app.repositories.organizations import MembershipRepository
 from app.services.audit import AuditAction, AuditService
 from app.services.context import OrgContext
 from app.services.expiry import organization_today
+from app.services.plans import Entitlements
 
 _LINK_TYPES = {"location_id": "location", "department_id": "department"}
 _TEXT_FIELDS = ("name", "code", "email", "phone", "contact_name", "address", "notes")
@@ -67,6 +69,10 @@ class EntityService:
         return entity, counts
 
     def create(self, ctx: OrgContext, data: dict[str, Any]) -> Entity:
+        entitlements = Entitlements(self.db, ctx.organization_id)
+        entitlements.require(Feature.ENTITY_MANAGEMENT)
+        if data["type"] == "location":
+            entitlements.check_locations()
         entity = Entity(organization_id=ctx.organization_id, type=data["type"], created_by_id=ctx.user.id)
         self._apply(ctx, entity, {key: value for key, value in data.items() if key != "type"})
         EntityRepository(self.db, ctx.organization_id).add(entity)
@@ -99,6 +105,11 @@ class EntityService:
         entity, _ = self.get(ctx, entity_id)
         if (entity.archived_at is not None) == archived:
             return entity
+        if not archived:
+            entitlements = Entitlements(self.db, ctx.organization_id)
+            entitlements.require(Feature.ENTITY_MANAGEMENT)
+            if entity.type == "location":
+                entitlements.check_locations()
         entity.archived_at = utcnow() if archived else None
         self.audit.record_for(
             ctx,

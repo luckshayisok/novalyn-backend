@@ -47,6 +47,35 @@ Production refuses to start unless these are set correctly.
 Keep secrets in your platform's secret manager. Do not bake them into images
 or commit them.
 
+### Payments (optional)
+
+Online payment is off until a provider is configured; until then the billing
+page tells customers to contact `SALES_EMAIL`, and plans can be set with
+`python -m app.cli set-plan <organization-slug> <plan>`.
+
+| Variable | Value |
+|---|---|
+| `DEFAULT_PLAN` | Plan for new organizations, normally `free` |
+| `SALES_EMAIL` | Where customers ask about Business plans and plan changes |
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | From the Stripe dashboard. Both are needed to enable Stripe |
+| `STRIPE_PRICE_{STARTER,GROWTH}_{MONTH,YEAR}` | Recurring price IDs (USD) created in Stripe |
+| `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` | From the Razorpay dashboard. All three enable Razorpay |
+| `RAZORPAY_PLAN_{STARTER,GROWTH}_{MONTH,YEAR}` | Plan IDs (INR) created in Razorpay |
+
+Webhook endpoints to register with the providers:
+
+- Stripe: `https://<api host>/api/v1/billing/webhooks/stripe`, events
+  `checkout.session.completed`, `customer.subscription.created`,
+  `customer.subscription.updated`, `customer.subscription.deleted`,
+  `invoice.paid`, `invoice.payment_failed`.
+- Razorpay: `https://<api host>/api/v1/billing/webhooks/razorpay`, the
+  `subscription.*` events.
+
+The prices shown on the plans page come from `app/core/plans.py`; keep them in
+step with the prices in the provider dashboards. Before taking real payments,
+run a purchase, a renewal, a failed payment and a cancellation in each
+provider's test mode.
+
 ## Release steps
 
 1. Build and push the API and web images.

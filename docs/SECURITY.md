@@ -107,6 +107,29 @@ gaps that remain. It is not a certification and makes no legal compliance claim.
 - A renewed file cannot become the current file without a manager with
   verify permission approving it; rejected files are kept for the record.
 
+### Plans and payments
+- Plan limits and features are checked by the server on every request that
+  would exceed them; the interface only mirrors them.
+- NOVALYN never sees card or bank details. People pay on Stripe's or
+  Razorpay's own pages.
+- A plan changes only when a webhook with a valid signature confirms payment.
+  Stripe signatures are timestamped and older than five minutes are refused;
+  both providers' signatures are compared in constant time. The plan named in
+  a webhook is accepted only if it is a self-serve plan.
+- Each provider event is stored once (unique on provider and event ID), so a
+  resent or replayed event is not applied twice.
+- Webhook endpoints are public but rate limited and limited to 512 KB bodies.
+- Without provider keys, checkout says payment is not set up; it never
+  simulates a payment.
+
+### Reports
+- Reports read only the caller's organization, behind `reports:read`; downloads
+  need `reports:export` and are audited.
+- CSV cells that start with `=`, `+`, `-`, `@`, tab or carriage return are
+  prefixed with `'` so spreadsheets do not run them as formulas.
+- Downloads are fetched with the access token and saved from memory; no file
+  URL carries a credential.
+
 ### Rate limiting
 - Fixed-window limits on authentication, invitation and organization-creation
   endpoints (see `API_DOCUMENTATION.md`). Counters are in memory for a single
@@ -142,6 +165,7 @@ gaps that remain. It is not a certification and makes no legal compliance claim.
 | Backups, retention and deletion workflows. | Phase 6; outline in `DEPLOYMENT.md` |
 | Registration reveals that an email is taken (`409`). Accepted for usability; rate limited. | Revisit in Phase 6 |
 | The client address used for rate limits is the direct peer unless the proxy is configured. | Set `FORWARDED_ALLOW_IPS` in production; see `DEPLOYMENT.md` |
+| Payment integrations were tested with signed test events, not against live Stripe or Razorpay accounts. | Run a test-mode purchase, renewal, failed payment and cancellation before taking payments |
 
 ## Reporting a vulnerability
 

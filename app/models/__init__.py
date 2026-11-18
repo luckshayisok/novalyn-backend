@@ -1,6 +1,7 @@
 """SQLAlchemy models. Importing this package registers every table on Base.metadata."""
 
 from app.models.audit_log import AuditLog
+from app.models.billing import BillingEvent, Invoice, Subscription, SubscriptionStatus
 from app.models.document import (
     Document,
     DocumentExtraction,
@@ -24,6 +25,10 @@ from app.models.user import RefreshToken, User, UserToken, UserTokenPurpose
 
 __all__ = [
     "AuditLog",
+    "BillingEvent",
+    "Invoice",
+    "Subscription",
+    "SubscriptionStatus",
     "Document",
     "DocumentExtraction",
     "DocumentVersion",

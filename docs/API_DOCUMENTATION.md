@@ -164,7 +164,9 @@ granted by invitation.
 | GET | `/organizations/{id}/audit-logs` | `audit:read` | Newest first |
 
 Query: `page` (default 1), `page_size` (default 25, max 100), `action`
-(an action or prefix such as `member.`).
+(an action or prefix such as `member.`), `actor` (a user ID), `resource_type`,
+`start` and `end` (dates, both included, in the organization's time zone;
+`422 invalid_range` when the end is before the start).
 
 ```json
 {
@@ -402,3 +404,81 @@ Organizations gain `reminders_enabled` and `reminder_offsets` (days before
 expiry, 0 to 365, at most 10). The dashboard gains `renewals_in_progress`,
 `renewals_overdue`, `renewals_awaiting_approval`, `open_renewals` and
 `renewal_trend`.
+
+## Plan limits
+
+Any endpoint can refuse because of the organization's plan, with HTTP 402:
+
+| Code | When | `details` |
+|---|---|---|
+| `plan_limit_reached` | Uploading or restoring past the document limit; inviting or accepting past the people limit (open invitations count); adding a location past the location limit | `{ "limit": "max_documents", "max": 10, "current": 10 }` |
+| `feature_not_in_plan` | Using a feature the plan does not include | `{ "feature": "csv_export", "plan": "growth" }` (the cheapest plan that has it) |
+
+Features: `automated_reminders`, `custom_reminders` (changing `reminder_offsets`), `basic_reports`,
+`advanced_reports`, `pdf_export`, `csv_export`, `document_history` (links to earlier file versions),
+`entity_management`, `multiple_locations`, `advanced_permissions` (inviting or assigning Compliance Manager
+and Viewer), `custom_integrations`, `priority_support`.
+
+## Calendar
+
+| Method | Path | Permission | Description |
+|---|---|---|---|
+| GET | `/organizations/{id}/calendar` | `documents:read` | Events between `start` and `end` (dates, both included, at most 62 days) |
+
+Optional query: `types` (repeat for several: `expiry`, `renewal_deadline`, `approval`), `category`,
+`owner` (a membership ID: the document owner, or the renewal assignee), `location` (an entity ID; matches
+documents of the location and of records in it).
+
+```json
+{
+  "start": "2026-11-01", "end": "2026-11-30", "today": "2026-11-18",
+  "events": [{
+    "id": "renewal:7c1e...", "type": "renewal_deadline", "date": "2026-11-28",
+    "title": "Renewal of Trade licence due", "document_id": "3f2a...", "document_name": "Trade licence",
+    "category": "business_license", "status": "requested", "renewal_id": "7c1e...",
+    "owner_name": "Mia Member", "entity_name": "Head office"
+  }]
+}
+```
+
+Event types: `expiry`, `expired` (an expiry date already passed), `renewal_deadline`, `approval` (a renewal
+awaiting approval, on its deadline). Sorted by date.
+
+## Reports
+
+| Method | Path | Permission | Description |
+|---|---|---|---|
+| GET | `/organizations/{id}/reports` | `reports:read` | Every report with `allowed` (in the plan), plus `can_export`, `csv_export`, `pdf_export` |
+| GET | `/organizations/{id}/reports/{key}` | `reports:read` | Run a report. `start`, `end` optional (defaults per report) |
+| GET | `/organizations/{id}/reports/{key}?format=csv` | `reports:export` | CSV download (UTF-8 with BOM, formula-safe), up to 5,000 rows |
+| GET | `/organizations/{id}/reports/{key}?format=pdf` | `reports:export` | PDF download, up to 5,000 rows |
+
+Reports: `expiring`, `expired`, `by_category`, `pending_verification` (basic reports); `by_supplier`,
+`by_employee`, `renewal_performance`, `activity` (advanced reports). The JSON preview has `columns`, `rows`
+(at most 500), `summary`, `start`, `end`, `generated_at` and `truncated`. Exports are recorded in the audit
+log as `report.exported`. Periods longer than three years return `422 range_too_long`.
+
+## Billing
+
+| Method | Path | Who | Description |
+|---|---|---|---|
+| GET | `/billing/plans` | public | Every plan: limits, features, display prices (`monthly_price`, `yearly_price` in the smallest currency unit, by currency; null for Business) |
+| GET | `/organizations/{id}/billing` | any member | Subscription, effective features, usage against limits, the last 24 invoices, configured payment providers, the plan catalog |
+| POST | `/organizations/{id}/billing/checkout` | `billing:manage` (owner) | `{ "plan": "starter" \| "growth", "interval": "month" \| "year", "provider"?: "stripe" \| "razorpay" }` returns `{ "url" }`, the provider's hosted page |
+| POST | `/organizations/{id}/billing/cancel` | `billing:manage` | Stop renewing at the end of the paid period |
+| POST | `/billing/webhooks/stripe` | Stripe | Signed with `Stripe-Signature` |
+| POST | `/billing/webhooks/razorpay` | Razorpay | Signed with `X-Razorpay-Signature` |
+
+Checkout does not change the plan. It records `pending_plan`; the plan changes when the provider's signed
+webhook confirms payment. Errors: `409 payments_not_configured` (no provider keys set: the message gives the
+sales address), `409 plan_not_available` (no price configured for that plan and interval),
+`409 already_subscribed`, `422 plan_not_self_serve` (Business), `502 payment_provider_error`.
+
+Webhooks answer `{ "message": "processed" | "duplicate" | "ignored" }`. A bad signature, or a Stripe
+timestamp more than five minutes old, is `400 invalid_webhook`; an unconfigured provider is `404`. Each
+provider event is applied once. Events handled: Stripe `checkout.session.completed`,
+`customer.subscription.created|updated|deleted`, `invoice.paid`, `invoice.payment_failed`; Razorpay
+`subscription.activated|charged|resumed|updated|pending|halted|paused|cancelled|completed`.
+
+Subscription statuses: `active`, `trialing`, `past_due` (the plan applies while the provider retries),
+`canceled` and `incomplete` (Free limits apply).

@@ -25,9 +25,12 @@ from datetime import timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.plans import Feature
 from app.models import Document, Organization, Renewal, RenewalStatus
+from app.models.organization import DEFAULT_REMINDER_OFFSETS
 from app.services.expiry import organization_today
 from app.services.notifications import EventType, document_payload, emit, kick_dispatcher
+from app.services.plans import Entitlements
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +73,12 @@ class ReminderScanner:
 
     def _scan(self, organization: Organization) -> int:
         today = organization_today(organization.timezone)
-        offsets = normalize_offsets(organization.reminder_offsets or [])
+        entitlements = Entitlements(self.db, organization.id)
+        if not entitlements.has(Feature.AUTOMATED_REMINDERS):
+            return 0
+        # Without a custom schedule in the plan, the default reminder days apply.
+        chosen = organization.reminder_offsets if entitlements.has(Feature.CUSTOM_REMINDERS) else None
+        offsets = normalize_offsets(chosen if chosen is not None else DEFAULT_REMINDER_OFFSETS)
         horizon = today + timedelta(days=max(offsets, default=0))
         documents = self.db.scalars(
             select(Document).where(

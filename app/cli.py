@@ -3,6 +3,9 @@
 seed            Create a demo organization with one user per role. Development only.
 scan-expiries   Emit the expiry reminders that are due now (Celery Beat runs this hourly).
 dispatch        Deliver pending notifications now (Celery Beat runs this every minute).
+set-plan <organization-slug> <free|starter|growth|business>
+                Put an organization on a plan by hand, for example a Business plan agreed
+                with sales. Payment is handled outside NOVALYN; the change is audited.
 """
 
 import os
@@ -68,8 +71,58 @@ def seed(db: Session, password: str) -> list[str]:
     return created
 
 
+class PlanChangeError(RuntimeError):
+    pass
+
+
+def set_plan(db: Session, slug: str, plan: str) -> str:
+    """Set an organization's plan manually. Returns a line describing the change."""
+    from app.core.plans import PLANS, Plan
+    from app.models import SubscriptionStatus
+    from app.services.audit import AuditService
+    from app.services.plans import get_subscription
+
+    if plan not in {p.value for p in Plan}:
+        raise PlanChangeError(f"Unknown plan {plan!r}. Choose free, starter, growth or business.")
+    organization = db.query(Organization).filter_by(slug=slug).one_or_none()
+    if organization is None:
+        raise PlanChangeError(f"No organization has the slug {slug!r}.")
+    subscription = get_subscription(db, organization.id)
+    if subscription.provider_subscription_id and subscription.provider in ("stripe", "razorpay"):
+        raise PlanChangeError(
+            f"This organization pays through {subscription.provider}. Change the plan there instead."
+        )
+    previous = subscription.plan
+    subscription.plan = plan
+    subscription.status = SubscriptionStatus.ACTIVE
+    subscription.provider = None if plan == Plan.FREE else "manual"
+    subscription.pending_plan = None
+    subscription.cancel_at_period_end = False
+    AuditService(db).record(
+        organization_id=organization.id,
+        actor_user_id=None,
+        action="billing.plan_changed",
+        resource_type="subscription",
+        resource_id=subscription.id,
+        metadata={"from_plan": previous, "plan": plan, "provider": "manual"},
+    )
+    db.commit()
+    return f"{organization.name}: {PLANS[Plan(previous)].name} -> {PLANS[Plan(plan)].name}"
+
+
 def main(argv: list[str]) -> int:
     command = argv[1:]
+    if command[:1] == ["set-plan"]:
+        if len(command) != 3:
+            print("Usage: python -m app.cli set-plan <organization-slug> <plan>", file=sys.stderr)
+            return 2
+        try:
+            with SessionLocal() as db:
+                print(set_plan(db, command[1], command[2]))
+        except PlanChangeError as error:
+            print(str(error), file=sys.stderr)
+            return 1
+        return 0
     if command == ["scan-expiries"]:
         from app.services.reminders import ReminderScanner
 

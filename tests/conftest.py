@@ -22,6 +22,10 @@ os.environ.update(
         "EMAIL_BACKEND": "memory",
         "STORAGE_BACKEND": "local",
         "AI_PROVIDER": "heuristic",
+        # Earlier tests exercise features, not plan limits; billing tests choose plans themselves.
+        "DEFAULT_PLAN": "business",
+        "STRIPE_SECRET_KEY": "",
+        "RAZORPAY_KEY_ID": "",
         "OCR_BACKEND": "none",
         "ANTHROPIC_API_KEY": "",
         "STORAGE_LOCAL_DIR": (_TMP_DIR / "storage").as_posix(),
